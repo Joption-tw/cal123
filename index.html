@@ -82,12 +82,12 @@
         
         .no-wrap { white-space: nowrap; }
 
-        /* 手機端預覽縮放 */
+        /* 手機端預覽縮放與間距優化 */
         @media screen and (max-width: 768px) {
             .certificate-preview-scroll {
                 width: 100%;
                 overflow-x: auto;
-                padding: 30px 0;
+                padding: 10px 0;
                 display: flex;
                 justify-content: flex-start;
                 -webkit-overflow-scrolling: touch;
@@ -96,7 +96,8 @@
                 transform: scale(0.46); 
                 transform-origin: top left;
                 margin-left: calc(50vw - 161px); 
-                margin-bottom: -500px;
+                /* 縮減提示文字與證書之間的空白 */
+                margin-bottom: -550px; 
             }
         }
 
@@ -178,7 +179,7 @@
             const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
             const [errorMessage, setErrorMessage] = useState('');
             const [quizFeedback, setQuizFeedback] = useState('');
-            const [feedbackKey, setFeedbackKey] = useState(0); // 用來強制重啟動畫的 Key
+            const [feedbackKey, setFeedbackKey] = useState(0); 
             const [failedThisQuestion, setFailedThisQuestion] = useState(false);
             const [isSaving, setIsSaving] = useState(false);
             const [savedImageUrl, setSavedImageUrl] = useState(null);
@@ -202,8 +203,7 @@
                 const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
                 let nameIdx = headers.findIndex(h => h.includes("姓名") || h.includes("名稱"));
                 let scoreIdx = headers.findIndex(h => h.includes("分數") || h.includes("成績"));
-                if (nameIdx === -1) nameIdx = 2; 
-                if (scoreIdx === -1) scoreIdx = 3;
+                if (nameIdx === -1) nameIdx = 2; if (scoreIdx === -1) scoreIdx = 3;
                 
                 return lines.slice(1).map(line => {
                     const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
@@ -254,7 +254,7 @@
                 setErrorMessage('');
                 const qBank = [
                     { q: "關於選擇權，買方（Buy）與賣方（Sell）的風險敘述何者正確？", a: ["買方風險有限，賣方風險無限", "賣方風險有限，買方風險無限", "兩者風險皆為無限", "兩者風險皆為有限"], correct: 0 },
-                    { q: "當你預預期未來行情會「大漲」，最適合的簡單策略是？", a: ["Buy Put", "Sell Call", "Buy Call", "Sell Put"], correct: 2 },
+                    { q: "當你預期未來行情會「大漲」，最適合的簡單策略是？", a: ["Buy Put", "Sell Call", "Buy Call", "Sell Put"], correct: 2 },
                     { q: "台指選擇權中，所謂的「週選擇權」通常在每週幾進行結算？", a: ["週一", "週二", "週三", "週五"], correct: 2 },
                     { q: "歐大常提到的「賣出勒式策略」是指同時做什麼動作？", a: ["買進 Call，買進 Put", "賣出不同履約價的 Call 與 Put", "賣出 Call，買進 Put", "買進 Call，賣出 Put"], correct: 1 },
                     { q: "在期權交易中，「時間價值」的流逝（Theta）對哪一方最有利？", a: ["買方", "賣方", "證券商", "期交所"], correct: 1 }
@@ -265,10 +265,8 @@
 
             const handleAnswer = (idx) => {
                 const isCorrect = idx === currentQuestions[currentIndex].correct;
-                
                 if (isCorrect) {
                     setQuizFeedback('');
-                    // 只有完全沒答錯過才得 20 分
                     const finalScoreForThisQuestion = failedThisQuestion ? 0 : 20;
                     const newScore = score + finalScoreForThisQuestion;
                     setScore(newScore);
@@ -286,12 +284,9 @@
                         }, 800);
                     }
                 } else {
-                    // 每次答錯：顯示錯誤、觸發震動動畫、觸發手機震動
                     setQuizFeedback('答案錯誤，請再試一次！');
-                    setFeedbackKey(prev => prev + 1); // 強制重新載入 shake 元件
+                    setFeedbackKey(prev => prev + 1); 
                     setFailedThisQuestion(true);
-                    
-                    // 手機震動 (支援的手機設備)
                     if (typeof navigator !== 'undefined' && navigator.vibrate) {
                         navigator.vibrate(200);
                     }
@@ -313,7 +308,6 @@
                     });
                     const dataUrl = canvas.toDataURL("image/png", 1.0);
                     setSavedImageUrl(dataUrl);
-                    
                     const link = document.createElement('a');
                     link.download = `結業證書_${playerName}.png`;
                     link.href = dataUrl;
@@ -358,20 +352,16 @@
 
                         {view === 'quiz' && (
                             <div className="bg-white p-8 rounded-[30px] shadow-xl border-4 border-white fade-in">
-                                <div className="flex justify-between items-center mb-8 text-stone-400 font-bold text-[10px] tracking-widest uppercase">
+                                <div className="flex justify-between items-center mb-10 text-stone-400 font-bold text-[10px] tracking-widest uppercase">
                                     <span>進度 {currentIndex + 1} / 5</span>
                                     <div className="w-32 h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-[#8baeb2] transition-all duration-500" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div></div>
                                 </div>
-                                
                                 <h2 className="text-2xl font-bold mb-8 min-h-[5rem] leading-relaxed text-stone-800 text-left">{currentQuestions[currentIndex]?.q}</h2>
-                                
-                                {/* 答錯提醒：加入 key 屬性以確保每次觸發 shake 動畫 */}
                                 {quizFeedback && (
                                     <div key={feedbackKey} className="mb-6 p-3 bg-red-50 border border-red-100 rounded-xl text-red-500 text-center font-bold text-sm shake">
                                         {quizFeedback}
                                     </div>
                                 )}
-
                                 <div className="space-y-4 text-left">
                                     {currentQuestions[currentIndex]?.a.map((opt, i) => (
                                         <button key={i} onClick={() => handleAnswer(i)} className="w-full text-left p-6 border-2 border-stone-50 hover:border-[#8baeb2] hover:bg-[#8baeb2]/5 rounded-3xl flex items-center transition-all">
@@ -449,11 +439,11 @@
                                     </div>
                                 </div>
 
-                                <p className="text-stone-500 text-lg mt-4 font-bold tracking-widest bg-amber-50 px-6 py-2 rounded-full border border-amber-100 shadow-sm animate-pulse">
+                                <p className="text-stone-500 text-lg mt-1 font-bold tracking-widest bg-amber-50 px-6 py-2 rounded-full border border-amber-100 shadow-sm animate-pulse">
                                     手機請用截圖方式保存
                                 </p>
 
-                                <div className="w-full max-w-lg grid grid-cols-1 gap-4 px-2 pt-6">
+                                <div className="w-full max-w-lg grid grid-cols-1 gap-4 px-2 pt-2">
                                     <button onClick={() => { setView('leaderboard'); fetchLeaderboard(); }} className="btn-ghibli w-full bg-[#8baeb2] text-white py-4 rounded-full font-bold shadow-lg text-lg flex items-center justify-center gap-2 font-serif"><Trophy /> 觀看即時排行榜</button>
                                     <div className="flex gap-4">
                                         <button onClick={saveAsImage} disabled={isSaving} className="btn-ghibli flex-1 bg-stone-900 text-white py-4 rounded-full font-bold shadow hover:bg-black transition-all text-base flex items-center justify-center gap-2 font-serif">
@@ -471,13 +461,11 @@
                                     <h2 className="text-xl font-bold text-stone-800 tracking-widest no-wrap font-serif">歐大選擇權榜單</h2>
                                     <button onClick={() => setView('home')} className="p-2 text-stone-300 hover:text-stone-800 transition-colors"><Home /></button>
                                 </div>
-                                
                                 <div className="flex px-4 py-2 text-stone-400 text-[10px] font-bold border-b border-stone-100 mb-2 bg-stone-50/50 rounded-t-xl font-sans">
                                     <div className="w-[40%] text-left flex items-center gap-1 cursor-pointer" onClick={() => handleSort('name')}>姓名 {sortConfig.field === 'name' && (sortConfig.direction === 'desc' ? <ArrowDown /> : <ArrowUp />)}</div>
                                     <div className="w-[20%] text-center flex items-center justify-center gap-1 cursor-pointer" onClick={() => handleSort('score')}>分數 {sortConfig.field === 'score' && (sortConfig.direction === 'desc' ? <ArrowDown /> : <ArrowUp />)}</div>
                                     <div className="w-[40%] text-right flex items-center justify-end gap-1 cursor-pointer" onClick={() => handleSort('timestamp')}>日期 {sortConfig.field === 'timestamp' && (sortConfig.direction === 'desc' ? <ArrowDown /> : <ArrowUp />)}</div>
                                 </div>
-
                                 <div className="overflow-y-auto flex-1 space-y-1 pr-1 scrollbar-hide text-left">
                                     {isLoadingLeaderboard ? (
                                         <div className="text-center py-24 text-stone-300 flex flex-col items-center gap-4"><Loader className="w-8 h-8 text-stone-300" /><p className="text-[10px] uppercase font-bold">數據讀取中...</p></div>
@@ -503,7 +491,6 @@
                             </div>
                         )}
 
-                        {/* 下載成功預覽視窗 */}
                         {savedImageUrl && (
                             <div className="modal-backdrop" onClick={() => setSavedImageUrl(null)}>
                                 <div className="bg-white p-5 rounded-3xl max-w-sm w-full shadow-2xl relative" onClick={e => e.stopPropagation()}>
