@@ -96,7 +96,6 @@
                 transform: scale(0.46); 
                 transform-origin: top left;
                 margin-left: calc(50vw - 161px); 
-                /* 縮減提示文字與證書之間的空白 */
                 margin-bottom: -550px; 
             }
         }
@@ -161,7 +160,7 @@
         };
 
         const Trophy = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>);
-        const Home = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>);
+        const Home = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="9 22 9 12 15 12 15 22"/></svg>);
         const Download = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>);
         const Loader = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`animate-spin ${className}`}><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>);
         const X = () => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>);
@@ -253,13 +252,67 @@
 
                 setErrorMessage('');
                 const qBank = [
+                    // 原有題目
                     { q: "關於選擇權，買方（Buy）與賣方（Sell）的風險敘述何者正確？", a: ["買方風險有限，賣方風險無限", "賣方風險有限，買方風險無限", "兩者風險皆為無限", "兩者風險皆為有限"], correct: 0 },
                     { q: "當你預期未來行情會「大漲」，最適合的簡單策略是？", a: ["Buy Put", "Sell Call", "Buy Call", "Sell Put"], correct: 2 },
                     { q: "台指選擇權中，所謂的「週選擇權」通常在每週幾進行結算？", a: ["週一", "週二", "週三", "週五"], correct: 2 },
                     { q: "歐大常提到的「賣出勒式策略」是指同時做什麼動作？", a: ["買進 Call，買進 Put", "賣出不同履約價的 Call 與 Put", "賣出 Call，買進 Put", "買進 Call，賣出 Put"], correct: 1 },
-                    { q: "在期權交易中，「時間價值」的流逝（Theta）對哪一方最有利？", a: ["買方", "賣方", "證券商", "期交所"], correct: 1 }
+                    { q: "在期權交易中，「時間價值」的流逝（Theta）對哪一方最有利？", a: ["買方", "賣方", "證券商", "期交所"], correct: 1 },
+                    // 新增 50 題
+                    { q: "選擇權是以下哪一種金融工具？", a: ["股息股票", "衍生性商品", "債券", "貨幣"], correct: 1 },
+                    { q: "選擇權的買方擁有什麼？", a: ["一種義務", "一種權利", "無任何權利", "一種股票"], correct: 1 },
+                    { q: "賣方賣出選擇權後最主要的義務是什麼？", a: ["必須購買標的", "必須履約", "可能必須履約", "不需負任何責任"], correct: 2 },
+                    { q: "買方付給賣方的費用稱為？", a: ["保證金", "期貨費", "權利金", "交易稅"], correct: 2 },
+                    { q: "看漲選擇權英文縮寫是？", a: ["PUT", "CALL", "STOP", "LIMIT"], correct: 1 },
+                    { q: "看跌選擇權英文縮寫是？", a: ["CALL", "FUTURE", "PUT", "OPTION"], correct: 2 },
+                    { q: "若選擇權到期後沒有價值，買方會：", a: ["履約", "不履約", "賣出股票", "賣出選擇權"], correct: 1 },
+                    { q: "選擇權到期後，買方選擇不履約，代表什麼？", a: ["買方損失全部權利金", "買方需支付保證金", "買方必須執行交易", "買方必須補交差價"], correct: 0 },
+                    { q: "如果你買了看漲選擇權，你預期的市場方向是？", a: ["下跌", "持平", "不確定", "上漲"], correct: 3 },
+                    { q: "如果以 台指期指數 (TX) 作為標的資產，在選擇權到期前台指大幅下跌，哪一方獲利有機會翻倍？", a: ["台指看漲 (Call) 買方", "台指看跌 (Put) 買方", "台指看漲 (Call) 賣方", "台指看跌 (Put) 賣方"], correct: 1 },
+                    { q: "選擇權買方到期可選擇是否履約，這代表買方有：", a: ["責任", "負擔", "權利", "義務"], correct: 2 },
+                    { q: "看漲買方最大損失是？", a: ["無限", "公司股價", "保證金", "權利金"], correct: 3 },
+                    { q: "看跌買方最大獲利理論上是？", a: ["標的到 0", "權利金", "未知", "無法計算"], correct: 0 },
+                    { q: "買方不履約會導致？", a: ["買方需支付股票", "買方損失權利金", "買方需支付保證金", "買方需支付額外費用"], correct: 1 },
+                    { q: "買方使用權利履約會獲得？", a: ["股票或現金差額", "保證金", "股票期貨", "分紅"], correct: 0 },
+                    { q: "台指選擇權買方如何提前終止？", a: ["不可以", "需提前申請", "可以賣回平倉", "取決於市場"], correct: 2 },
+                    { q: "買方的獲利來源主要是？", a: ["價差", "保證金", "股票股利", "權利金收入"], correct: 0 },
+                    { q: "與歷史比較，相同到期日，權利金越高代表？", a: ["沒有風險", "市場平靜", "交易稅", "市場波動越大"], correct: 3 },
+                    { q: "買方虧損最大可能發生於？", a: ["到期價外", "履約價內", "標的上漲", "保證金不足"], correct: 0 },
+                    { q: "買方若預期會高波動應該？", a: ["賣選擇權", "買選擇權", "不交易", "購買債券"], correct: 1 },
+                    { q: "選擇權賣方的義務是？", a: ["擁有權利", "領取股息", "保留現金", "承擔履約風險"], correct: 3 },
+                    { q: "賣方最大獲利為？", a: ["權利金", "股利", "標的升值", "利息"], correct: 0 },
+                    { q: "賣方最大損失是？", a: ["權利金", "理論無限", "標的下跌", "保證金"], correct: 1 },
+                    { q: "賣出 Put 的最大損失為？", a: ["標的跌至 0", "權利金", "市場平穩", "保證金"], correct: 0 },
+                    { q: "賣方收到的費用是？", a: ["利息", "權利金", "分紅", "保證金"], correct: 1 },
+                    { q: "賣方需準備？", a: ["權利金", "利息", "保證金", "債券"], correct: 2 },
+                    { q: "賣方在到期，持有倉位是在價外則會？", a: ["贏得整筆權利金", "履約", "虧損", "補交保證金"], correct: 0 },
+                    { q: "賣方承受的風險屬於？", a: ["盈利最大", "無限風險", "有限風險", "無責任"], correct: 1 },
+                    { q: "賣方平倉可以？", a: ["降低風險", "增加權利金", "領取股息", "延長到期"], correct: 0 },
+                    { q: "賣方若預期標的震盪小，應該？", a: ["買入選擇權", "做空股票", "賣出選擇權", "不交易"], correct: 2 },
+                    { q: "理論上，選擇權買方的勝率通常？", a: ["大於賣方", "相等", "小於賣方", "不確定"], correct: 2 },
+                    { q: "為什麼選擇權賣方理論上勝率較高？", a: ["因為賣方必定能獲利", "因為賣方收到權利金並且大多到期價外", "因為賣方無風險", "因為賣方可以無限增長股票"], correct: 1 },
+                    { q: "若選擇權的倉位都在價外，勝率對誰有利？", a: ["賣方", "買方", "交易員", "市場"], correct: 0 },
+                    { q: "到期倉位在價內代表？", a: ["無價值", "勝算低", "波動大", "有價值"], correct: 3 },
+                    { q: "下列何種情況表示選擇權是價內（ITM）？", a: ["Call 的履約價低於現貨價格", "Put 的履約價低於現貨價格", "Call 的履約價高於現貨價格", "Put 的履約價等於現貨價格"], correct: 0 },
+                    { q: "買方常見失敗原因是？", a: ["获得股息", "標的升值", "時間價值流失", "高勝率"], correct: 2 },
+                    { q: "時間價值減少對買方是？", a: ["有利", "中性", "不利", "不影響"], correct: 2 },
+                    { q: "隱波動率上升通常會？", a: ["增加選擇權價值", "減少選擇權價值", "不變", "取消"], correct: 0 },
+                    { q: "隱波動率下降對買方？", a: ["有利", "中性", "不利", "潛在盈利"], correct: 2 },
+                    { q: "持有價外選擇權到期，結果是？", a: ["獲利", "全部權利金損失", "履約", "撤單"], correct: 1 },
+                    { q: "看漲選擇權最賺錢時機是？", a: ["標的大跌", "標的大漲", "不動", "隨機"], correct: 1 },
+                    { q: "看跌選擇權最賺錢時機是？", a: ["標的大跌", "標的大漲", "不動", "隨機"], correct: 0 },
+                    { q: "賣方被執行履約時，代表買方？", a: ["履約", "不履約", "放棄", "取消"], correct: 0 },
+                    { q: "買方擁有時間價值衰減的不利影響稱為？", a: ["Delta", "Gamma", "Theta", "Vega"], correct: 2 },
+                    { q: "Delta 衡量的是？", a: ["時間價值", "價格變動敏感度", "利率", "波動率"], correct: 1 },
+                    { q: "買方希望時間衰減越？", a: ["快", "無所謂", "慢", "不需考慮"], correct: 2 },
+                    { q: "賣方希望波動率越？", a: ["高", "低", "不變", "時間大"], correct: 1 },
+                    { q: "如果你認為市場將大幅波動，你會？", a: ["賣選擇權", "持有現金", "買選擇權", "購買債券"], correct: 2 },
+                    { q: "在選擇權到期日當天，如果標的價格幾乎沒變動，哪一方最可能獲得優勢？", a: ["賣方保留權利金", "買方獲利", "賣方需補貼差價", "買方收股利"], correct: 0 },
+                    { q: "賣方風險管理最重要是？", a: ["忽略", "平倉或對沖", "增加合約", "放任"], correct: 1 }
                 ];
-                setCurrentQuestions([...qBank].sort(() => 0.5 - Math.random()));
+                
+                // 隨機選 20 題
+                setCurrentQuestions([...qBank].sort(() => 0.5 - Math.random()).slice(0, 20));
                 setCurrentIndex(0); setScore(0); setFailedThisQuestion(false); setView('quiz');
             };
 
@@ -267,11 +320,12 @@
                 const isCorrect = idx === currentQuestions[currentIndex].correct;
                 if (isCorrect) {
                     setQuizFeedback('');
-                    const finalScoreForThisQuestion = failedThisQuestion ? 0 : 20;
+                    // 每題 5 分 (20 題共 100 分)，若該題曾答錯則該題不給分
+                    const finalScoreForThisQuestion = failedThisQuestion ? 0 : 5;
                     const newScore = score + finalScoreForThisQuestion;
                     setScore(newScore);
 
-                    if (currentIndex < 4) {
+                    if (currentIndex < 19) {
                         setCurrentIndex(currentIndex + 1);
                         setFailedThisQuestion(false);
                     } else {
@@ -353,8 +407,8 @@
                         {view === 'quiz' && (
                             <div className="bg-white p-8 rounded-[30px] shadow-xl border-4 border-white fade-in">
                                 <div className="flex justify-between items-center mb-10 text-stone-400 font-bold text-[10px] tracking-widest uppercase">
-                                    <span>進度 {currentIndex + 1} / 5</span>
-                                    <div className="w-32 h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-[#8baeb2] transition-all duration-500" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div></div>
+                                    <span>進度 {currentIndex + 1} / 20</span>
+                                    <div className="w-32 h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-[#8baeb2] transition-all duration-500" style={{ width: `${((currentIndex + 1) / 20) * 100}%` }}></div></div>
                                 </div>
                                 <h2 className="text-2xl font-bold mb-8 min-h-[5rem] leading-relaxed text-stone-800 text-left">{currentQuestions[currentIndex]?.q}</h2>
                                 {quizFeedback && (
