@@ -26,83 +26,105 @@
             overflow-x: hidden;
         }
 
-        /* 證書外框架：IBM 名片比例與質感 */
+        /* 證書外框架：固定 A4 比例 700x990 */
         .certificate-outer {
-            padding: 6px;
-            background: #d4d4d4;
-            box-shadow: 0 40px 80px rgba(0,0,0,0.15);
-            border-radius: 4px;
-            width: 100%;
-            max-width: 700px;
+            padding: 0;
+            background: #ffffff;
+            box-shadow: 0 40px 80px rgba(0,0,0,0.1);
+            border-radius: 2px;
+            width: 700px;
+            height: 990px;
             margin: 0 auto;
             position: relative;
+            box-sizing: border-box;
+            display: block;
+            flex-shrink: 0;
         }
         
         /* 模擬亞麻紙張質感 (毛毛的感覺) */
         .certificate-container {
             background-color: #fdf8f1; 
             background-image: 
-                repeating-linear-gradient(rgba(0,0,0,0.01) 0px, rgba(0,0,0,0.01) 1px, transparent 1px, transparent 3px),
-                repeating-linear-gradient(90deg, rgba(0,0,0,0.01) 0px, rgba(0,0,0,0.01) 1px, transparent 1px, transparent 3px);
-            border: 2px solid #a37b45;
+                repeating-linear-gradient(rgba(0,0,0,0.015) 0px, rgba(0,0,0,0.015) 1px, transparent 1px, transparent 3px),
+                repeating-linear-gradient(90deg, rgba(0,0,0,0.015) 0px, rgba(0,0,0,0.015) 1px, transparent 1px, transparent 3px);
+            border: 3.5px solid #a37b45;
             position: relative;
             overflow: hidden;
-            min-height: 560px;
-            display: flex;
-            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
         }
 
-        /* Joption 浮水印 */
+        /* Joption 全畫面重複浮水印 */
         .watermark-overlay {
             position: absolute;
             inset: 0;
             z-index: 1;
             pointer-events: none;
             opacity: 0.04;
-            background-image: url("data:image/svg+xml,%3Csvg width='200' height='100' viewBox='0 0 200 100' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='50%25' y='50%25' font-family='Arial, sans-serif' font-weight='900' font-size='16' fill='%23a37b45' text-anchor='middle' dominant-baseline='middle' transform='rotate(-25 100 50)'%3EJOPTION%3C/text%3E%3C/svg%3E");
+            background-image: url("data:image/svg+xml,%3Csvg width='160' height='80' viewBox='0 0 160 80' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='50%25' y='50%25' font-family='Arial, sans-serif' font-weight='900' font-size='12' fill='%23a37b45' text-anchor='middle' dominant-baseline='middle' transform='rotate(-25 80 40)'%3EJOPTION%3C/text%3E%3C/svg%3E");
             background-repeat: repeat;
         }
 
+        /* 雙線內邊框 */
         .certificate-inner-border {
             border: 1px solid #dcd0b9;
-            margin: 10px;
-            padding: 30px 25px;
-            flex: 1;
+            margin: 12px;
+            height: calc(100% - 24px);
             position: relative;
             z-index: 2;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+            box-sizing: border-box;
+            padding: 0;
         }
         
-        .fade-in { animation: fadeIn 0.8s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-        
-        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
-        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
-        .scrollbar-thin::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+        .no-wrap { white-space: nowrap; }
 
-        .btn-ghibli {
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            border-radius: 15px;
+        /* 姓名底線 */
+        .name-underline {
+            width: 350px;
+            height: 1.5px;
+            background-color: #e5e7eb;
+            margin: 8px auto 0;
         }
 
         /* 勳章特效 */
-        .glow-purple { filter: drop-shadow(0 0 10px rgba(167, 139, 250, 0.6)); animation: pulseGlow 2.5s infinite; }
-        .glow-gold { filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.4)); }
-        @keyframes pulseGlow { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; } }
+        .glow-purple { filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.6)); animation: pulseGlow 2.5s infinite; }
+        .glow-gold { filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.3)); }
+        @keyframes pulseGlow { 0%, 100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.03); opacity: 1; } }
 
-        /* 儲存預覽模態框 */
+        /* 手機端預覽縮放 (不影響截圖) */
+        @media screen and (max-width: 768px) {
+            .certificate-preview-scroll {
+                width: 100%;
+                overflow-x: auto;
+                padding: 20px 0;
+                -webkit-overflow-scrolling: touch;
+            }
+            .certificate-outer {
+                transform: scale(0.5);
+                transform-origin: top left;
+                margin-left: calc(50vw - 175px); /* 居中校準 */
+                margin-bottom: -450px;
+            }
+        }
+
         .modal-backdrop {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.9);
             z-index: 100;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 15px;
+            backdrop-filter: blur(8px);
         }
+
+        .btn-ghibli {
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-radius: 99px;
+        }
+        .btn-ghibli:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
@@ -119,7 +141,6 @@
             SHEET_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSVeIf30C4q_dI4RAoaNHjItk0F35QdtIvizSyJWbbNfnVxhYj-NyWocq67QknUEFr1_0oBvgJntMbi/pub?output=csv" 
         };
 
-        const ChevronRight = () => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1"><path d="m9 18 6-6-6-6"/></svg>);
         const Trophy = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>);
         const Home = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>);
         const Download = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>);
@@ -163,8 +184,7 @@
                 const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
                 let nameIdx = headers.findIndex(h => h.includes("姓名") || h.includes("名稱"));
                 let scoreIdx = headers.findIndex(h => h.includes("分數") || h.includes("成績"));
-                if (nameIdx === -1) nameIdx = 2; 
-                if (scoreIdx === -1) scoreIdx = 3;
+                if (nameIdx === -1) nameIdx = 2; if (scoreIdx === -1) scoreIdx = 3;
                 return lines.slice(1).map(line => {
                     const cols = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
                     const cleanCols = cols.map(c => c.replace(/^"|"$/g, '').trim());
@@ -178,14 +198,12 @@
                     const url = `${CONFIG.SHEET_CSV_URL}&t=${Date.now()}`;
                     const response = await fetch(url, { cache: 'no-store' });
                     const text = await response.text();
-                    const data = parseCSV(text);
-                    setLeaderboard(data.sort((a, b) => b.score - a.score));
-                } catch (e) { setErrorMessage("資料同步中..."); } finally { setIsLoadingLeaderboard(false); }
+                    setLeaderboard(parseCSV(text).sort((a, b) => b.score - a.score));
+                } catch (e) { console.error(e); } finally { setIsLoadingLeaderboard(false); }
             };
 
             const startQuiz = () => {
-                if (!playerName.trim()) return setErrorMessage("請輸入您的姓名");
-                if (!playerEmail.trim() || !playerEmail.includes('@')) return setErrorMessage("請輸入正確的電子信箱");
+                if (!playerName.trim()) return setErrorMessage("請輸入冒險者名稱");
                 setErrorMessage('');
                 const qBank = [
                     { q: "關於選擇權，買方（Buy）與賣方（Sell）的風險敘述何者正確？", a: ["買方風險有限，賣方風險無限", "賣方風險有限，買方風險無限", "兩者風險皆為無限", "兩者風險皆為有限"], correct: 0 },
@@ -198,60 +216,54 @@
                 setCurrentIndex(0); setAnswers([]); setScore(0); setSubmitStatus('idle'); setView('quiz');
             };
 
-            const autoSubmitData = () => {
-                setSubmitStatus('submitting');
-                if (formRef.current) { formRef.current.submit(); setSubmitStatus('success'); setTimeout(fetchLeaderboard, 4000); }
-            };
-
             const handleAnswer = (idx) => {
                 const newAnswers = [...answers, idx]; setAnswers(newAnswers);
                 if (currentIndex < 4) { setCurrentIndex(currentIndex + 1); } 
                 else {
-                    let s = 0;
-                    currentQuestions.forEach((q, i) => { if (q.correct === newAnswers[i]) s += 20; });
-                    setScore(s); setView('result'); setTimeout(autoSubmitData, 800);
+                    let s = 0; currentQuestions.forEach((q, i) => { if (q.correct === newAnswers[i]) s += 20; });
+                    setScore(s); setView('result');
+                    setTimeout(() => { if (formRef.current) { formRef.current.submit(); setSubmitStatus('success'); fetchLeaderboard(); } }, 800);
                 }
             };
 
-            // 強化儲存功能
             const saveAsImage = async () => {
                 if (!certificateRef.current || isSaving) return;
                 setIsSaving(true);
                 try {
-                    // 使用 html2canvas 生成圖片
+                    // 強制擷取設定為 700x990
                     const canvas = await html2canvas(certificateRef.current, {
-                        scale: 3, 
+                        scale: 2.5,
                         useCORS: true,
                         allowTaint: true,
                         backgroundColor: "#fdf8f1",
+                        width: 700,
+                        height: 990,
                         onclone: (clonedDoc) => {
-                            // 確保複製出來的元素是可見的
-                            clonedDoc.querySelector('.certificate-outer').style.boxShadow = 'none';
+                            const clonedOuter = clonedDoc.querySelector('.certificate-outer');
+                            if (clonedOuter) {
+                                clonedOuter.style.transform = 'none';
+                                clonedOuter.style.boxShadow = 'none';
+                                clonedOuter.style.margin = '0';
+                                clonedOuter.style.width = '700px';
+                                clonedOuter.style.height = '990px';
+                            }
                         }
                     });
-                    
                     const dataUrl = canvas.toDataURL("image/png", 1.0);
                     setSavedImage(dataUrl);
-
-                    // 嘗試自動下載
                     const link = document.createElement('a');
                     link.download = `歐大選擇權教室_結業證書_${playerName}.png`;
                     link.href = dataUrl;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                } catch (err) {
-                    setErrorMessage("儲存失敗，請嘗試手動截圖。");
-                    console.error("Save error:", err);
-                } finally {
-                    setIsSaving(false);
-                }
+                } catch (err) { alert("圖片生成失敗，建議使用螢幕截圖。"); } finally { setIsSaving(false); }
             };
 
             const rank = getRankInfo(score);
 
             return (
-                <div className="min-h-screen text-stone-800 p-4 flex flex-col items-center justify-center relative bg-[#f4f4f2] selection:bg-amber-100">
+                <div className="min-h-screen p-4 flex flex-col items-center justify-center relative bg-[#f4f4f2]">
                     <div style={{ display: 'none' }}>
                         <iframe name="hidden_iframe"></iframe>
                         <form ref={formRef} action={CONFIG.formActionUrl} method="POST" target="hidden_iframe">
@@ -263,140 +275,170 @@
 
                     <div className="relative w-full max-w-lg z-10 py-4">
                         
-                        {/* 首頁 */}
                         {view === 'home' && (
                             <div className="bg-white/90 backdrop-blur-md p-10 rounded-[30px] shadow-2xl border-4 border-white text-center fade-in">
-                                <div className="mb-8">
-                                    <img src="IP標籤.jpg" alt="Logo" className="w-32 h-auto mx-auto border-4 border-white shadow-lg rounded-2xl" onError={(e) => e.target.style.display = 'none'} />
-                                </div>
-                                <h1 className="text-3xl font-bold text-stone-900 mb-2 tracking-tight text-center">歐大選擇權教室</h1>
-                                <p className="text-stone-500 mb-10 italic text-center">隨堂測驗 — 測驗你的期權實力</p>
+                                <div className="mb-8"><img src="IP標籤.jpg" alt="Logo" className="w-32 h-auto mx-auto border-4 border-white shadow-lg rounded-2xl" /></div>
+                                <h1 className="text-3xl font-bold text-stone-900 mb-2">歐大選擇權教室</h1>
+                                <p className="text-stone-500 mb-10 italic">隨堂測驗 — 測驗你的期權實力</p>
                                 <div className="space-y-4 mb-8">
                                     <input type="text" placeholder="您的姓名，例如：歐大" className="w-full px-6 py-4 rounded-full border-2 border-stone-100 focus:border-amber-400 focus:outline-none text-lg bg-stone-50/50" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
                                     <input type="email" placeholder="電子信箱，例如：Joption@gmail.com" className="w-full px-6 py-4 rounded-full border-2 border-stone-100 focus:border-amber-400 focus:outline-none text-lg bg-stone-50/50" value={playerEmail} onChange={(e) => setPlayerEmail(e.target.value)} />
                                     {errorMessage && <p className="text-red-500 text-sm font-bold text-center mt-2">{errorMessage}</p>}
                                 </div>
                                 <div className="space-y-3 px-2">
-                                    <button onClick={startQuiz} className="btn-ghibli w-full bg-[#8baeb2] hover:bg-[#6c8f93] text-white font-bold py-4 shadow-lg flex items-center justify-center gap-2 text-xl transition-all">開始作答 <ChevronRight /></button>
+                                    <button onClick={startQuiz} className="btn-ghibli w-full bg-[#8baeb2] hover:bg-[#6c8f93] text-white font-bold py-4 shadow-lg text-xl transition-all">開始作答</button>
                                     <button onClick={() => { setView('leaderboard'); fetchLeaderboard(); }} className="btn-ghibli w-full bg-white text-stone-500 border-2 border-stone-100 font-semibold py-4 hover:bg-stone-50 transition-all">觀看排行榜</button>
                                 </div>
                             </div>
                         )}
 
-                        {/* 測驗中 */}
                         {view === 'quiz' && (
                             <div className="bg-white p-8 rounded-[30px] shadow-xl border-4 border-white fade-in">
-                                <div className="flex justify-between items-center mb-10 text-stone-400 font-bold uppercase text-[10px] tracking-widest">
+                                <div className="flex justify-between items-center mb-10 text-stone-400 font-bold text-[10px] tracking-widest uppercase">
                                     <span>進度 {currentIndex + 1} / 5</span>
                                     <div className="w-32 h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-[#8baeb2] transition-all duration-500" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div></div>
                                 </div>
                                 <h2 className="text-2xl font-bold mb-10 min-h-[5rem] leading-relaxed text-stone-800">{currentQuestions[currentIndex]?.q}</h2>
                                 <div className="space-y-4">
                                     {currentQuestions[currentIndex]?.a.map((opt, i) => (
-                                        <button key={i} onClick={() => handleAnswer(i)} className="w-full text-left p-6 border-2 border-stone-50 hover:border-[#8baeb2] hover:bg-[#8baeb2]/5 rounded-3xl transition-all group flex items-center shadow-sm">
-                                            <span className="w-10 h-10 flex items-center justify-center bg-stone-50 group-hover:bg-[#8baeb2] group-hover:text-white rounded-full mr-4 text-xs font-bold border border-stone-100 shadow-sm">{String.fromCharCode(65 + i)}</span>{opt}
+                                        <button key={i} onClick={() => handleAnswer(i)} className="w-full text-left p-6 border-2 border-stone-50 hover:border-[#8baeb2] hover:bg-[#8baeb2]/5 rounded-3xl group flex items-center transition-all">
+                                            <span className="w-10 h-10 flex items-center justify-center bg-stone-50 group-hover:bg-[#8baeb2] group-hover:text-white rounded-full mr-4 text-xs font-bold border border-stone-100">{String.fromCharCode(65 + i)}</span>{opt}
                                         </button>
                                     ))}
                                 </div>
                             </div>
                         )}
 
-                        {/* 結業證書結果 */}
                         {view === 'result' && (
-                            <div className="space-y-6 fade-in">
-                                <div className="certificate-outer" ref={certificateRef}>
-                                    <div className="certificate-container">
-                                        <div className="watermark-overlay"></div>
-                                        <div className="certificate-inner-border">
-                                            <div className="text-center relative z-10 flex flex-col h-full items-center">
-                                                <div className="mb-4">
-                                                    <img src="IP標籤.jpg" alt="Logo" className="w-16 h-auto mx-auto border border-stone-200 mb-2 opacity-90" onError={(e) => e.target.style.display = 'none'} />
-                                                    <h1 className="text-4xl font-serif font-black text-stone-800 tracking-[0.1em]">結業證書</h1>
-                                                    <p className="text-stone-400 font-serif text-[10px] tracking-widest font-bold uppercase mt-1">Chap 1 選擇權邏輯入門</p>
+                            <div className="space-y-6 fade-in flex flex-col items-center">
+                                <div className="certificate-preview-scroll">
+                                    <div className="certificate-outer" ref={certificateRef}>
+                                        <div className="certificate-container">
+                                            <div className="watermark-overlay"></div>
+                                            <div className="certificate-inner-border">
+                                                
+                                                {/* 1. Logo (固定位置) */}
+                                                <div style={{ marginTop: '70px', marginBottom: '40px' }} className="text-center">
+                                                    <img src="IP標籤.jpg" alt="Logo" className="w-20 h-auto mx-auto border border-stone-200" />
                                                 </div>
-                                                <div className="mb-2"><p className="text-stone-500 font-serif text-base italic">茲證明</p></div>
-                                                <div className="mb-4"><h2 className="text-5xl font-black text-stone-900 border-b-2 border-stone-800 inline-block px-10 pb-1">{playerName}</h2></div>
-                                                <div className="mb-6"><p className="text-stone-600 text-base font-serif">參與隨堂測驗，獲得成績：</p></div>
-                                                <div className="flex items-center justify-center gap-12 w-full max-w-md mb-6">
+
+                                                {/* 2. 標題與章節 */}
+                                                <div style={{ marginBottom: '50px' }} className="text-center">
+                                                    <h1 className="text-6xl font-black text-stone-800 tracking-[0.15em] no-wrap">結業證書</h1>
+                                                    <p className="text-stone-400 text-sm mt-3 tracking-[0.3em] font-bold uppercase no-wrap">Chap 1 選擇權邏輯入門</p>
+                                                </div>
+
+                                                {/* 3. 茲證明 */}
+                                                <div style={{ marginBottom: '30px' }} className="text-center">
+                                                    <p className="text-stone-500 text-xl italic">茲證明</p>
+                                                </div>
+
+                                                {/* 4. 姓名 */}
+                                                <div style={{ marginBottom: '60px' }} className="text-center">
+                                                    <h2 className="text-5xl font-black text-stone-900 no-wrap">{playerName}</h2>
+                                                    <div className="name-underline"></div>
+                                                </div>
+
+                                                {/* 5. 參與測驗 */}
+                                                <div style={{ marginBottom: '40px' }} className="text-center">
+                                                    <p className="text-stone-600 text-lg">參與隨堂測驗，獲得成績：</p>
+                                                </div>
+
+                                                {/* 6. 分數與階級 */}
+                                                <div style={{ marginBottom: '60px' }} className="flex items-center justify-center gap-20">
                                                     <div className="text-center">
-                                                        <span className="text-[10px] text-stone-300 font-bold block mb-1 uppercase tracking-widest">分數</span>
-                                                        <span className="text-6xl font-black text-amber-800">{score}</span>
+                                                        <span className="text-[10px] text-stone-300 font-bold block mb-2 uppercase tracking-widest">分數</span>
+                                                        <span className="text-8xl font-black text-amber-800">{score}</span>
                                                     </div>
                                                     <div className="text-center">
-                                                        <span className="text-[10px] text-stone-300 font-bold block mb-1 uppercase tracking-widest">授予階級</span>
+                                                        <span className="text-[10px] text-stone-300 font-bold block mb-2 uppercase tracking-widest">授予階級</span>
                                                         <div className="flex flex-col items-center">
-                                                            <span className={`text-4xl mb-1 ${rank.glow}`}>{rank.icon}</span>
-                                                            <span className={`text-2xl font-bold ${rank.color}`}>{rank.title}</span>
+                                                            <span className={`text-6xl mb-2 ${rank.glow}`}>{rank.icon}</span>
+                                                            <span className={`text-2xl font-black ${rank.color} no-wrap`}>{rank.title}</span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="mb-8 max-w-sm"><p className="text-stone-400 text-sm font-serif leading-loose tracking-wide text-center">具備初階選擇權風險識別與<br/>基本策略運用能力，特發此證。</p></div>
-                                                <div className="flex justify-between items-end w-full px-4 mt-auto">
-                                                    <div className="text-left text-[8px] text-stone-400 font-sans leading-relaxed uppercase">DATE: {new Date().toLocaleDateString('zh-TW')}<br/>NO: JOPT-ID-{Math.floor(Date.now()/1000)}</div>
-                                                    <div className="relative pr-2"><span className="text-stone-800 text-xl font-serif font-bold italic mr-1">院長 歐大</span><div className="w-16 h-16 border-2 border-red-600/40 rounded-full flex items-center justify-center text-red-600/50 font-bold rotate-12 absolute -top-5 -right-8 text-[7px] leading-tight text-center">歐大<br/>選擇權</div></div>
+
+                                                {/* 7. 結語 */}
+                                                <div style={{ marginBottom: '50px' }} className="max-w-sm mx-auto text-center px-10">
+                                                    <p className="text-stone-400 text-sm leading-loose tracking-wide">
+                                                        具備初階選擇權風險識別與<br/>
+                                                        基本策略運用能力，特發此證。
+                                                    </p>
                                                 </div>
+
+                                                {/* 8. 簽章 (底部精確對齊) */}
+                                                <div style={{ position: 'absolute', bottom: '50px', left: '50px', right: '50px' }} className="flex justify-between items-end">
+                                                    <div className="text-left text-[9px] text-stone-400 font-sans leading-relaxed uppercase">
+                                                        DATE: {new Date().toLocaleDateString('zh-TW')}<br/>
+                                                        NO: JOPT-ID-{Math.floor(Date.now()/1000)}
+                                                    </div>
+                                                    <div className="relative flex items-center pr-4">
+                                                        <span className="text-stone-900 text-3xl font-black italic mr-3 no-wrap">院長 歐大</span>
+                                                        <div className="w-20 h-20 border-2 border-red-600/40 rounded-full flex items-center justify-center text-red-600/50 font-bold rotate-12 absolute -top-8 -right-10 text-[9px] leading-tight text-center">
+                                                            歐大<br/>選擇權
+                                                        </div>
+                                                    </div>
+                                                </div>
+
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-3 px-2">
-                                    <button onClick={() => { setView('leaderboard'); fetchLeaderboard(); }} className="btn-ghibli w-full bg-[#8baeb2] text-white py-4 rounded-full font-bold shadow-lg hover:bg-[#6c8f93] transition-all flex items-center justify-center gap-2 tracking-widest text-base"><Trophy /> 觀看即時排行榜</button>
-                                    <div className="flex gap-3">
-                                        <button onClick={saveAsImage} disabled={isSaving} className="btn-ghibli flex-1 bg-stone-900 text-white py-3 rounded-full font-bold shadow hover:bg-black transition-all text-sm flex items-center justify-center gap-2">
-                                            {isSaving ? <Loader className="w-4 h-4" /> : <><Download className="w-4 h-4"/> 儲存結業證書</>}
+                                <div className="w-full max-w-lg grid grid-cols-1 gap-4 px-2 pt-10">
+                                    <button onClick={() => { setView('leaderboard'); fetchLeaderboard(); }} className="btn-ghibli w-full bg-[#8baeb2] text-white py-4 rounded-full font-bold shadow-lg text-lg flex items-center justify-center gap-2"><Trophy /> 觀看即時排行榜</button>
+                                    <div className="flex gap-4">
+                                        <button onClick={saveAsImage} disabled={isSaving} className="btn-ghibli flex-1 bg-stone-900 text-white py-4 rounded-full font-bold shadow hover:bg-black transition-all text-base flex items-center justify-center gap-2">
+                                            {isSaving ? <Loader className="w-4 h-4 text-white" /> : <><Download className="w-4 h-4"/> 儲存結業證書</>}
                                         </button>
-                                        <button onClick={() => setView('home')} className="btn-ghibli flex-1 bg-white text-stone-400 border-2 border-stone-100 py-3 rounded-full font-bold hover:bg-stone-50 transition-all text-sm">返回首頁</button>
+                                        <button onClick={() => setView('home')} className="btn-ghibli flex-1 bg-white text-stone-400 border-2 border-stone-100 py-4 rounded-full font-bold hover:bg-stone-50 transition-all text-base">返回挑戰</button>
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {/* 排行榜 */}
                         {view === 'leaderboard' && (
-                            <div className="bg-white/95 backdrop-blur-md p-10 rounded-[40px] max-h-[85vh] flex flex-col shadow-2xl border-4 border-white fade-in">
+                            <div className="bg-white/95 backdrop-blur-md p-10 rounded-[40px] max-h-[85vh] flex flex-col shadow-2xl border-4 border-white fade-in mx-auto max-w-md">
                                 <div className="flex justify-between items-center mb-8 border-b border-stone-100 pb-6">
-                                    <h2 className="text-xl font-bold text-stone-900 tracking-widest text-center">巔峰挑戰賽榜單</h2>
+                                    <h2 className="text-xl font-bold text-stone-900 tracking-widest text-center no-wrap">巔峰挑戰賽榜單</h2>
                                     <button onClick={() => setView('home')} className="p-2 text-stone-300 hover:text-stone-800 transition-colors"><Home /></button>
                                 </div>
-                                <div className="overflow-y-auto flex-1 space-y-3 pr-2 scrollbar-thin">
+                                <div className="overflow-y-auto flex-1 space-y-3 pr-2 scrollbar-thin text-left">
                                     {isLoadingLeaderboard ? (
-                                        <div className="text-center py-24 text-stone-300 flex flex-col items-center gap-4"><Loader className="w-8 h-8" /><p className="text-[10px] tracking-widest uppercase text-center">數據讀取中...</p></div>
+                                        <div className="text-center py-24 text-stone-300 flex flex-col items-center gap-4"><Loader className="w-8 h-8 text-stone-300" /><p className="text-[10px] tracking-widest uppercase text-center font-bold">讀取中...</p></div>
                                     ) : leaderboard.length > 0 ? leaderboard.map((item, idx) => (
                                         <div key={idx} className="flex items-center justify-between p-5 bg-stone-50/50 rounded-[25px] hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-stone-100">
-                                            <div className="flex items-center gap-5">
-                                                <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-[#8baeb2] text-white shadow-lg' : 'bg-stone-100 text-stone-400'}`}>{idx + 1}</span>
-                                                <div>
-                                                    <div className="font-bold text-stone-800 text-base">{item.name}</div>
-                                                    <div className={`text-[9px] font-bold uppercase tracking-widest ${getRankInfo(item.score).color}`}>
+                                            <div className="flex items-center gap-5 overflow-hidden">
+                                                <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-[#8baeb2] text-white shadow-lg' : 'bg-stone-100 text-stone-400'}`}>{idx + 1}</span>
+                                                <div className="overflow-hidden">
+                                                    <div className="font-bold text-stone-800 text-base truncate">{item.name}</div>
+                                                    <div className={`text-[9px] font-bold uppercase tracking-widest ${getRankInfo(item.score).color} truncate`}>
                                                         {getRankInfo(item.score).icon} {getRankInfo(item.score).title}
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="text-right"><span className="font-black text-stone-900 text-2xl">{item.score}</span></div>
+                                            <div className="text-right flex-shrink-0 ml-2"><span className="font-black text-stone-900 text-2xl">{item.score}</span></div>
                                         </div>
                                     )) : (
-                                        <div className="text-center py-24 text-stone-400 flex flex-col items-center gap-4"><Trophy /><p className="text-xs tracking-widest text-center">目前尚無挑戰紀錄</p></div>
+                                        <div className="text-center py-24 text-stone-400 flex flex-col items-center gap-4"><Trophy /><p className="text-xs tracking-widest text-center font-bold">目前尚無紀錄資料</p></div>
                                     )}
                                 </div>
-                                <button onClick={() => setView('home')} className="mt-8 w-full bg-stone-50 text-stone-400 font-bold py-4 rounded-full hover:bg-stone-100 transition-all text-xs tracking-widest text-center">離開排行榜</button>
+                                <button onClick={() => setView('home')} className="mt-8 w-full bg-stone-50 text-stone-400 font-bold py-4 rounded-full hover:bg-stone-100 transition-all text-xs tracking-widest text-center font-bold uppercase">離開榜單</button>
                             </div>
                         )}
 
-                        {/* 儲存預覽模態框 (解決下載限制) */}
                         {savedImage && (
                             <div className="modal-backdrop" onClick={() => setSavedImage(null)}>
                                 <div className="bg-white p-4 rounded-2xl max-w-sm w-full animate-in zoom-in duration-200 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                                    <button onClick={() => setSavedImage(null)} className="absolute -top-12 right-0 text-white flex items-center gap-1 font-bold">
-                                        關閉 <X />
-                                    </button>
+                                    <button onClick={() => setSavedImage(null)} className="absolute -top-12 right-0 text-white flex items-center gap-1 font-bold">關閉 <X /></button>
                                     <div className="text-center mb-4 text-stone-600">
-                                        <p className="font-bold text-amber-600 mb-1">🎉 結業成功！</p>
-                                        <p className="text-sm">手機用戶：長按圖片點選「儲存」</p>
+                                        <p className="font-bold text-amber-600 mb-1 italic">🎉 結業成功！</p>
+                                        <p className="text-sm font-bold">手機用戶：長按圖片點選「儲存」</p>
                                         <p className="text-sm">電腦用戶：點擊圖片按右鍵「另存」</p>
                                     </div>
-                                    <img src={savedImage} alt="Certificate Preview" className="w-full rounded-lg shadow border border-stone-200" />
-                                    <button onClick={() => setSavedImage(null)} className="mt-6 w-full py-3 bg-stone-100 text-stone-600 rounded-xl font-bold">我已儲存，關閉預覽</button>
+                                    <img src={savedImage} alt="Certificate Preview" className="w-full rounded-lg shadow-lg border border-stone-200" />
+                                    <button onClick={() => setSavedImage(null)} className="mt-6 w-full py-4 bg-stone-100 text-stone-600 rounded-xl font-bold font-serif hover:bg-stone-200 transition-colors">儲存完成，關閉預覽</button>
                                 </div>
                             </div>
                         )}
