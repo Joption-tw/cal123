@@ -127,7 +127,6 @@
         }
         .btn-ghibli:active { transform: scale(0.95); }
         
-        /* 確保產出的圖片在手機上可以被選取與儲存 */
         .saveable-image {
             max-width: 100%;
             height: auto;
@@ -242,7 +241,7 @@
                 try {
                     window.scrollTo(0, 0);
                     const canvas = await html2canvas(certificateRef.current, {
-                        scale: 3, // 平衡清晰度與手機性能，防止全白
+                        scale: 3, 
                         useCORS: true,
                         allowTaint: true,
                         backgroundColor: "#fdf8f1",
@@ -258,11 +257,9 @@
                         }
                     });
 
-                    // 轉換為高品質 DataURL
                     const dataUrl = canvas.toDataURL("image/png", 1.0);
                     setSavedImageUrl(dataUrl);
                     
-                    // 電腦端嘗試下載
                     const link = document.createElement('a');
                     link.download = `歐大選擇權教室_結業證書_${playerName}.png`;
                     link.href = dataUrl;
@@ -343,8 +340,7 @@
                                                 
                                                 {/* 1. Logo */}
                                                 <div style={{ position: 'absolute', top: '50px', left: '60px' }}>
-                                                    <img src="IP標籤.jpg" alt="Logo" className="w-20 h-auto border border-stone-200 shadow-sm" 
-                                                         onError={(e) => { e.target.onerror = null; e.target.src='https://www.google.com/s2/favicons?domain=joption.tw&sz=64'; }} />
+                                                    <img src="IP標籤.jpg" alt="Logo" className="w-20 h-auto border border-stone-200 shadow-sm" onError={(e) => { e.target.onerror = null; e.target.src='https://www.google.com/s2/favicons?domain=joption.tw&sz=64'; }} />
                                                 </div>
 
                                                 {/* 2. 標題與章節 */}
@@ -360,17 +356,17 @@
                                                     <p className="text-stone-50 text-3xl italic tracking-[0.2em] font-serif">茲證明</p>
                                                 </div>
 
-                                                {/* 4. 姓名 */}
+                                                {/* 4. 姓名 - 精確上移 */}
                                                 <div style={{ marginBottom: '15px' }} className="text-center w-full">
                                                     <h2 className="text-5xl font-black text-stone-900 no-wrap tracking-widest">{playerName}</h2>
                                                 </div>
 
-                                                {/* 5. 參與文字 */}
+                                                {/* 5. 參與文字 - 統一上移 */}
                                                 <div style={{ marginBottom: '40px' }} className="text-center">
                                                     <p className="text-stone-600 text-2xl tracking-widest font-serif">參與隨堂測驗，獲得成績：</p>
                                                 </div>
 
-                                                {/* 6. 分數與階級 */}
+                                                {/* 6. 分數與階級 - 統一上移 */}
                                                 <div style={{ marginBottom: '65px' }} className="flex items-center justify-center gap-36 w-full">
                                                     <div className="text-center">
                                                         <span className="text-lg text-stone-300 font-bold block mb-3 uppercase tracking-[0.3em]">分數</span>
@@ -385,7 +381,7 @@
                                                     </div>
                                                 </div>
 
-                                                {/* 7. 結語 */}
+                                                {/* 7. 結語 - 統一上移 */}
                                                 <div style={{ marginBottom: '55px' }} className="max-w-xl mx-auto text-center px-10">
                                                     <p className="text-stone-400 text-xl leading-relaxed tracking-wider font-serif">
                                                         具備初階選擇權風險識別與<br/>
@@ -393,14 +389,14 @@
                                                     </p>
                                                 </div>
 
-                                                {/* 8. 簽章與日期 */}
+                                                {/* 8. 簽章與日期 - 左移 2 格 */}
                                                 <div style={{ position: 'absolute', bottom: '15px', left: '30px', right: '30px' }} className="flex justify-between items-end">
                                                     <div className="text-left text-base text-stone-400 font-sans leading-relaxed uppercase tracking-tighter">
                                                         DATE: {new Date().toLocaleDateString('zh-TW')}<br/>
                                                         NO: JOPT-ID-{Math.floor(Date.now()/1000)}
                                                     </div>
                                                     
-                                                    <div className="relative flex items-center" style={{ transform: 'translate(-25px, -25px)' }}>
+                                                    <div className="relative flex items-center" style={{ transform: 'translate(-50px, -25px)' }}>
                                                         <span className="text-stone-900 text-4xl font-black italic no-wrap tracking-tighter">院長 歐大</span>
                                                         <div style={{ 
                                                             width: '110px', 
@@ -440,37 +436,38 @@
                             </div>
                         )}
 
+                        {/* 排行榜視圖 - 標題更名為「歐大選擇權榜單」 */}
                         {view === 'leaderboard' && (
-                            <div className="bg-white/95 backdrop-blur-md p-10 rounded-[40px] max-h-[85vh] flex flex-col shadow-2xl border-4 border-white fade-in mx-auto max-w-md text-center">
-                                <div className="flex justify-between items-center mb-8 border-b border-stone-100 pb-6">
-                                    <h2 className="text-xl font-bold text-stone-800 tracking-widest text-center no-wrap font-serif">巔峰挑戰賽榜單</h2>
+                            <div className="bg-white/95 backdrop-blur-md p-6 rounded-[30px] max-h-[85vh] flex flex-col shadow-2xl border-4 border-white fade-in mx-auto max-w-md text-center">
+                                <div className="flex justify-between items-center mb-6 border-b border-stone-100 pb-4">
+                                    <h2 className="text-xl font-bold text-stone-800 tracking-widest text-center no-wrap font-serif">歐大選擇權榜單</h2>
                                     <button onClick={() => setView('home')} className="p-2 text-stone-300 hover:text-stone-800 transition-colors"><Home /></button>
                                 </div>
-                                <div className="overflow-y-auto flex-1 space-y-3 pr-2 scrollbar-thin text-left">
+                                <div className="overflow-y-auto flex-1 space-y-2 pr-2 scrollbar-thin text-left">
                                     {isLoadingLeaderboard ? (
                                         <div className="text-center py-24 text-stone-300 flex flex-col items-center gap-4"><Loader className="w-8 h-8 text-stone-300" /><p className="text-[10px] tracking-widest uppercase text-center font-bold">數據讀取中...</p></div>
                                     ) : leaderboard.length > 0 ? leaderboard.map((item, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-5 bg-stone-50/50 rounded-[25px] hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-stone-100">
-                                            <div className="flex items-center gap-5 overflow-hidden">
-                                                <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-[#8baeb2] text-white shadow-lg' : 'bg-stone-100 text-stone-400'}`}>{idx + 1}</span>
+                                        <div key={idx} className="flex items-center justify-between p-3 bg-stone-50/50 rounded-[15px] hover:bg-white hover:shadow-sm transition-all border border-transparent hover:border-stone-100 mb-1">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-[#8baeb2] text-white shadow-lg' : 'bg-stone-100 text-stone-400'}`}>{idx + 1}</span>
                                                 <div className="overflow-hidden">
-                                                    <div className="font-bold text-stone-800 text-base truncate">{item.name}</div>
-                                                    <div className={`text-[9px] font-bold uppercase tracking-widest ${getRankInfo(item.score).color} truncate`}>
+                                                    <div className="font-bold text-stone-800 text-sm truncate">{item.name}</div>
+                                                    <div className={`text-[8px] font-bold uppercase tracking-widest ${getRankInfo(item.score).color} truncate`}>
                                                         {getRankInfo(item.score).icon} {getRankInfo(item.score).title}
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="text-right flex-shrink-0 ml-2"><span className="font-black text-stone-900 text-2xl">{item.score}</span></div>
+                                            <div className="text-right flex-shrink-0 ml-2"><span className="font-black text-stone-900 text-xl">{item.score}</span></div>
                                         </div>
                                     )) : (
                                         <div className="text-center py-24 text-stone-400 flex flex-col items-center gap-4"><Trophy /><p className="text-xs tracking-widest text-center font-bold">目前尚無挑戰紀錄</p></div>
                                     )}
                                 </div>
-                                <button onClick={() => setView('home')} className="mt-8 w-full bg-stone-50 text-stone-400 font-bold py-4 rounded-full hover:bg-stone-100 transition-all text-xs tracking-widest text-center font-bold uppercase">離開榜單</button>
+                                <button onClick={() => setView('home')} className="mt-6 w-full bg-stone-50 text-stone-400 font-bold py-3 rounded-full hover:bg-stone-100 transition-all text-xs tracking-widest text-center font-bold uppercase">離開榜單</button>
                             </div>
                         )}
 
-                        {/* 下載成功預覽視窗 - 點擊下載按鈕後才會出現這張圖片 */}
+                        {/* 下載成功預覽 */}
                         {savedImageUrl && (
                             <div className="modal-backdrop" onClick={() => setSavedImageUrl(null)}>
                                 <div className="bg-white p-5 rounded-3xl max-w-sm w-full animate-in zoom-in duration-200 shadow-2xl relative" onClick={e => e.stopPropagation()}>
@@ -481,7 +478,6 @@
                                         <p className="text-xs text-stone-400 mt-1 italic">若視窗空白請稍候 3 秒...</p>
                                     </div>
                                     <div className="border-4 border-amber-100 rounded-xl overflow-hidden shadow-inner bg-stone-50">
-                                        {/* 這是真正的圖片檔案，支援手機系統的原生儲存功能 */}
                                         <img src={savedImageUrl} alt="Certificate PNG" className="saveable-image" />
                                     </div>
                                     <button onClick={() => setSavedImageUrl(null)} className="mt-6 w-full py-4 bg-[#8baeb2] text-white rounded-xl font-bold hover:bg-[#6c8f93] transition-colors font-serif shadow-lg text-lg">儲存完成，返回挑戰</button>
