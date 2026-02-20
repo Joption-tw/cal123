@@ -55,7 +55,7 @@
             box-sizing: border-box;
         }
 
-        /* Joption 全畫面重複浮水印 */
+        /* Joption 浮水印 */
         .watermark-overlay {
             position: absolute;
             inset: 0;
@@ -66,7 +66,6 @@
             background-repeat: repeat;
         }
 
-        /* 雙線內邊框 */
         .certificate-inner-border {
             border: 1px solid #dcd0b9;
             margin: 14px;
@@ -82,9 +81,7 @@
         
         .no-wrap { white-space: nowrap; }
 
-        /* 勳章與光環特效 */
         .glow-purple { filter: drop-shadow(0 0 12px rgba(167, 139, 250, 0.7)); animation: pulseGlow 2.5s infinite; }
-        .glow-gold { filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.4)); }
         @keyframes pulseGlow { 0%, 100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.03); opacity: 1; } }
 
         /* 手機端預覽縮放 */
@@ -134,13 +131,16 @@
             user-select: auto !important;
             -webkit-user-select: auto !important;
         }
+
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useMemo } = React;
 
         const CONFIG = {
             formActionUrl: "https://docs.google.com/forms/d/e/1FAIpQLSeoBO2Dumc6wTJ32dvoMhe-cfcaBh46DOWCb4EUl9XDPMvLmw/formResponse",
@@ -155,6 +155,8 @@
         const Download = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline mr-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>);
         const Loader = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`animate-spin ${className}`}><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg>);
         const X = () => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>);
+        const ArrowDown = () => (<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1"><path d="m6 9 6 6 6-6"/></svg>);
+        const ArrowUp = () => (<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="inline ml-1"><path d="m18 15-6-6-6 6"/></svg>);
 
         function App() {
             const [view, setView] = useState('home');
@@ -169,19 +171,16 @@
             const [errorMessage, setErrorMessage] = useState('');
             const [isSaving, setIsSaving] = useState(false);
             const [savedImageUrl, setSavedImageUrl] = useState(null);
+            
+            const [sortConfig, setSortConfig] = useState({ field: 'score', direction: 'desc' });
 
             const formRef = useRef(null);
             const certificateRef = useRef(null);
 
             const getRankInfo = (s) => {
                 if (s === 100) return { title: "權利金之神", icon: "🟣👑", color: "text-purple-600", glow: "glow-purple" };
-                if (s >= 95) return { title: "策略指揮官", icon: "♟️", color: "text-stone-900", glow: "glow-gold" };
-                if (s >= 90) return { title: "賣方操盤手", icon: "📊", color: "text-stone-800", glow: "" };
-                if (s >= 85) return { title: "風險控管專員", icon: "🛡️", color: "text-amber-800", glow: "" };
-                if (s >= 80) return { title: "策略實習生", icon: "⚖️", color: "text-amber-700", glow: "" };
-                if (s >= 75) return { title: "波動率觀察員", icon: "📈", color: "text-slate-600", glow: "" };
-                if (s >= 70) return { title: "時間價值探索者", icon: "⏳", color: "text-slate-500", glow: "" };
-                if (s >= 65) return { title: "履約價新兵", icon: "🎯", color: "text-orange-900", glow: "" };
+                if (s >= 90) return { title: "策略指揮官", icon: "♟️", color: "text-stone-900", glow: "" };
+                if (s >= 80) return { title: "賣方操盤手", icon: "📊", color: "text-stone-800", glow: "" };
                 if (s >= 60) return { title: "權利金學徒", icon: "💰", color: "text-orange-800", glow: "" };
                 return { title: "選擇權小白", icon: "❓", color: "text-stone-400", glow: "" };
             };
@@ -189,14 +188,39 @@
             const parseCSV = (text) => {
                 const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
                 if (lines.length < 2) return [];
+                
+                // 改用逗號分割標頭
                 const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
                 let nameIdx = headers.findIndex(h => h.includes("姓名") || h.includes("名稱"));
                 let scoreIdx = headers.findIndex(h => h.includes("分數") || h.includes("成績"));
-                if (nameIdx === -1) nameIdx = 2; if (scoreIdx === -1) scoreIdx = 3;
+                if (nameIdx === -1) nameIdx = 2; 
+                if (scoreIdx === -1) scoreIdx = 3;
+                
                 return lines.slice(1).map(line => {
-                    const cols = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+                    // 關鍵修正：改用 CSV 逗號分割法，忽略空格，避免日期被切斷
+                    const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
                     const cleanCols = cols.map(c => c.replace(/^"|"$/g, '').trim());
-                    return { name: cleanCols[nameIdx] || "匿名玩家", score: parseInt(cleanCols[scoreIdx]) || 0, date: cleanCols[0]?.split(' ')[0] || '' };
+                    const rawTimestamp = cleanCols[0] || '';
+                    
+                    // 從字串提取年月日：假設格式為 "2026/2/20 下午 2:53:29"
+                    // 直接取第一個空格前的內容
+                    let displayDate = rawTimestamp.split(' ')[0] || "";
+                    
+                    // 嘗試正規化日期格式
+                    const dateObj = new Date(rawTimestamp.replace('下午', 'PM').replace('上午', 'AM'));
+                    if (!isNaN(dateObj.getTime())) {
+                        const y = dateObj.getFullYear();
+                        const m = dateObj.getMonth() + 1;
+                        const d = dateObj.getDate();
+                        displayDate = `${y}/${m}/${d}`;
+                    }
+
+                    return { 
+                        name: cleanCols[nameIdx] || "匿名玩家", 
+                        score: parseInt(cleanCols[scoreIdx]) || 0, 
+                        date: displayDate,
+                        timestamp: !isNaN(dateObj.getTime()) ? dateObj.getTime() : 0
+                    };
                 }).filter(item => item.name && !item.name.includes("姓名"));
             };
 
@@ -206,8 +230,31 @@
                     const url = `${CONFIG.SHEET_CSV_URL}&t=${Date.now()}`;
                     const response = await fetch(url, { cache: 'no-store' });
                     const text = await response.text();
-                    setLeaderboard(parseCSV(text).sort((a, b) => b.score - a.score));
+                    setLeaderboard(parseCSV(text));
                 } catch (e) { console.error(e); } finally { setIsLoadingLeaderboard(false); }
+            };
+
+            const sortedLeaderboard = useMemo(() => {
+                const items = [...leaderboard];
+                items.sort((a, b) => {
+                    let valA = a[sortConfig.field];
+                    let valB = b[sortConfig.field];
+                    
+                    if (sortConfig.field === 'score' || sortConfig.field === 'timestamp') {
+                        return sortConfig.direction === 'desc' ? valB - valA : valA - valB;
+                    }
+                    return sortConfig.direction === 'desc' 
+                        ? String(valB).localeCompare(String(valA), 'zh-TW')
+                        : String(valA).localeCompare(String(valB), 'zh-TW');
+                });
+                return items;
+            }, [leaderboard, sortConfig]);
+
+            const handleSort = (field) => {
+                setSortConfig(prev => ({
+                    field,
+                    direction: prev.field === field && prev.direction === 'desc' ? 'asc' : 'desc'
+                }));
             };
 
             const startQuiz = () => {
@@ -256,25 +303,10 @@
                             }
                         }
                     });
-
                     const dataUrl = canvas.toDataURL("image/png", 1.0);
                     setSavedImageUrl(dataUrl);
-                    
-                    const link = document.createElement('a');
-                    link.download = `歐大選擇權教室_結業證書_${playerName}.png`;
-                    link.href = dataUrl;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-
-                } catch (err) { 
-                    setErrorMessage("圖片生成失敗，建議使用螢幕截圖儲存。");
-                } finally { 
-                    setIsSaving(false); 
-                }
+                } catch (err) { setErrorMessage("圖片生成失敗，建議截圖儲存。"); } finally { setIsSaving(false); }
             };
-
-            const rank = getRankInfo(score);
 
             return (
                 <div className="min-h-screen p-4 flex flex-col items-center justify-center relative bg-[#f4f4f2]">
@@ -296,8 +328,8 @@
                                     <img src="IP標籤.jpg" alt="Logo" className="w-32 h-auto mx-auto border-4 border-white shadow-lg rounded-2xl" 
                                          onError={(e) => { e.target.onerror = null; e.target.src='https://www.google.com/s2/favicons?domain=joption.tw&sz=128'; }} />
                                 </div>
-                                <h1 className="text-3xl font-bold text-stone-900 mb-2">歐大選擇權教室</h1>
-                                <p className="text-stone-500 mb-10 italic text-center no-wrap">隨堂測驗 — 測驗你的期權實力</p>
+                                <h1 className="text-3xl font-bold text-stone-900 mb-2 font-serif">歐大選擇權教室</h1>
+                                <p className="text-stone-500 mb-10 italic text-center">隨堂測驗 — 測驗你的期權實力</p>
                                 <div className="space-y-4 mb-8 text-left">
                                     <input type="text" placeholder="您的姓名，例如：歐大" className="w-full px-6 py-4 rounded-full border-2 border-stone-100 focus:border-amber-400 focus:outline-none text-lg bg-stone-50/50" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
                                     <input type="email" placeholder="電子信箱 (選填)" className="w-full px-6 py-4 rounded-full border-2 border-stone-100 focus:border-amber-400 focus:outline-none text-lg bg-stone-50/50" value={playerEmail} onChange={(e) => setPlayerEmail(e.target.value)} />
@@ -337,88 +369,60 @@
                                         <div className="certificate-container">
                                             <div className="watermark-overlay"></div>
                                             <div className="certificate-inner-border">
-                                                
-                                                {/* 1. Logo */}
                                                 <div style={{ position: 'absolute', top: '50px', left: '60px' }}>
                                                     <img src="IP標籤.jpg" alt="Logo" className="w-20 h-auto border border-stone-200 shadow-sm" onError={(e) => { e.target.onerror = null; e.target.src='https://www.google.com/s2/favicons?domain=joption.tw&sz=64'; }} />
                                                 </div>
-
-                                                {/* 2. 標題與章節 */}
                                                 <div style={{ marginTop: '40px', marginBottom: '0px' }} className="text-center">
                                                     <h1 className="text-6xl font-black text-stone-800 tracking-[0.25em] no-wrap" style={{ lineHeight: '1.1' }}>結業證書</h1>
                                                     <div style={{ marginTop: '75px' }}> 
-                                                        <p className="text-stone-400 text-2xl tracking-[0.4em] font-bold uppercase no-wrap">Chap 1 選擇權邏輯入門</p>
+                                                        <p className="text-stone-400 text-2xl tracking-[0.4em] font-bold uppercase no-wrap font-sans">Chap 1 選擇權邏輯入門</p>
                                                     </div>
                                                 </div>
-
-                                                {/* 3. 茲證明 */}
                                                 <div style={{ marginBottom: '60px', marginTop: '20px' }} className="text-center">
                                                     <p className="text-stone-50 text-3xl italic tracking-[0.2em] font-serif">茲證明</p>
                                                 </div>
-
-                                                {/* 4. 姓名 - 精確上移 */}
                                                 <div style={{ marginBottom: '15px' }} className="text-center w-full">
                                                     <h2 className="text-5xl font-black text-stone-900 no-wrap tracking-widest">{playerName}</h2>
                                                 </div>
-
-                                                {/* 5. 參與文字 - 統一上移 */}
                                                 <div style={{ marginBottom: '40px' }} className="text-center">
                                                     <p className="text-stone-600 text-2xl tracking-widest font-serif">參與隨堂測驗，獲得成績：</p>
                                                 </div>
-
-                                                {/* 6. 分數與階級 - 統一上移 */}
                                                 <div style={{ marginBottom: '65px' }} className="flex items-center justify-center gap-36 w-full">
                                                     <div className="text-center">
-                                                        <span className="text-lg text-stone-300 font-bold block mb-3 uppercase tracking-[0.3em]">分數</span>
+                                                        <span className="text-lg text-stone-300 font-bold block mb-3 uppercase tracking-[0.3em] font-sans">分數</span>
                                                         <span className="text-8xl font-black text-amber-800 tabular-nums" style={{ lineHeight: '1' }}>{score}</span>
                                                     </div>
                                                     <div className="text-center">
-                                                        <span className="text-lg text-stone-300 font-bold block mb-3 uppercase tracking-[0.3em]">授予階級</span>
+                                                        <span className="text-lg text-stone-300 font-bold block mb-3 uppercase tracking-[0.3em] font-sans">授予階級</span>
                                                         <div className="flex flex-col items-center">
-                                                            <span className={`text-6xl mb-4 ${rank.glow}`}>{rank.icon}</span>
-                                                            <span className={`text-3xl font-black ${rank.color} no-wrap tracking-[0.2em]`}>{rank.title}</span>
+                                                            <span className={`text-6xl mb-4 ${getRankInfo(score).glow}`}>{getRankInfo(score).icon}</span>
+                                                            <span className={`text-3xl font-black ${getRankInfo(score).color} no-wrap tracking-[0.2em]`}>{getRankInfo(score).title}</span>
                                                         </div>
                                                     </div>
                                                 </div>
-
-                                                {/* 7. 結語 - 統一上移 */}
                                                 <div style={{ marginBottom: '55px' }} className="max-w-xl mx-auto text-center px-10">
                                                     <p className="text-stone-400 text-xl leading-relaxed tracking-wider font-serif">
                                                         具備初階選擇權風險識別與<br/>
                                                         基本策略運用能力，特發此證。
                                                     </p>
                                                 </div>
-
-                                                {/* 8. 簽章與日期 - 左移 2 格 */}
                                                 <div style={{ position: 'absolute', bottom: '15px', left: '30px', right: '30px' }} className="flex justify-between items-end">
                                                     <div className="text-left text-base text-stone-400 font-sans leading-relaxed uppercase tracking-tighter">
                                                         DATE: {new Date().toLocaleDateString('zh-TW')}<br/>
                                                         NO: JOPT-ID-{Math.floor(Date.now()/1000)}
                                                     </div>
-                                                    
                                                     <div className="relative flex items-center" style={{ transform: 'translate(-50px, -25px)' }}>
                                                         <span className="text-stone-900 text-4xl font-black italic no-wrap tracking-tighter">院長 歐大</span>
                                                         <div style={{ 
-                                                            width: '110px', 
-                                                            height: '110px', 
-                                                            border: '5.5px solid rgba(220, 38, 38, 0.78)', 
-                                                            borderRadius: '50%',
-                                                            position: 'absolute',
-                                                            top: '-55px',
-                                                            right: '-45px',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            transform: 'rotate(15deg)',
-                                                            pointerEvents: 'none'
+                                                            width: '110px', height: '110px', border: '5.5px solid rgba(220, 38, 38, 0.78)', 
+                                                            borderRadius: '50%', position: 'absolute', top: '-55px', right: '-45px', 
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                                            transform: 'rotate(15deg)', pointerEvents: 'none'
                                                         }}>
-                                                            <div className="text-red-600/95 font-black text-[27px] leading-[1.05] text-center">
-                                                                歐大<br/>選擇權
-                                                            </div>
+                                                            <div className="text-red-600/95 font-black text-[27px] leading-[1.05] text-center font-sans">歐大<br/>選擇權</div>
                                                         </div>
                                                     </div>
                                                 </div>
-
                                             </div>
                                         </div>
                                     </div>
@@ -436,34 +440,51 @@
                             </div>
                         )}
 
-                        {/* 排行榜視圖 - 標題更名為「歐大選擇權榜單」 */}
+                        {/* 排行榜視圖 - 核心修正日期解析 */}
                         {view === 'leaderboard' && (
                             <div className="bg-white/95 backdrop-blur-md p-6 rounded-[30px] max-h-[85vh] flex flex-col shadow-2xl border-4 border-white fade-in mx-auto max-w-md text-center">
                                 <div className="flex justify-between items-center mb-6 border-b border-stone-100 pb-4">
                                     <h2 className="text-xl font-bold text-stone-800 tracking-widest text-center no-wrap font-serif">歐大選擇權榜單</h2>
                                     <button onClick={() => setView('home')} className="p-2 text-stone-300 hover:text-stone-800 transition-colors"><Home /></button>
                                 </div>
-                                <div className="overflow-y-auto flex-1 space-y-2 pr-2 scrollbar-thin text-left">
+                                
+                                <div className="flex px-4 py-2 text-stone-400 text-[10px] font-bold border-b border-stone-100 mb-2 bg-stone-50/50 rounded-t-xl font-sans">
+                                    <div className="w-[35%] cursor-pointer flex items-center gap-1" onClick={() => handleSort('name')}>
+                                        姓名 {sortConfig.field === 'name' && (sortConfig.direction === 'desc' ? <ArrowDown /> : <ArrowUp />)}
+                                    </div>
+                                    <div className="w-[15%] text-center cursor-pointer flex items-center justify-center gap-1" onClick={() => handleSort('score')}>
+                                        分數 {sortConfig.field === 'score' && (sortConfig.direction === 'desc' ? <ArrowDown /> : <ArrowUp />)}
+                                    </div>
+                                    <div className="w-[50%] text-right cursor-pointer flex items-center justify-end gap-1" onClick={() => handleSort('timestamp')}>
+                                        日期 {sortConfig.field === 'timestamp' && (sortConfig.direction === 'desc' ? <ArrowDown /> : <ArrowUp />)}
+                                    </div>
+                                </div>
+
+                                <div className="overflow-y-auto flex-1 space-y-1 pr-2 scrollbar-hide text-left">
                                     {isLoadingLeaderboard ? (
                                         <div className="text-center py-24 text-stone-300 flex flex-col items-center gap-4"><Loader className="w-8 h-8 text-stone-300" /><p className="text-[10px] tracking-widest uppercase text-center font-bold">數據讀取中...</p></div>
-                                    ) : leaderboard.length > 0 ? leaderboard.map((item, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-3 bg-stone-50/50 rounded-[15px] hover:bg-white hover:shadow-sm transition-all border border-transparent hover:border-stone-100 mb-1">
-                                            <div className="flex items-center gap-3 overflow-hidden">
-                                                <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-[#8baeb2] text-white shadow-lg' : 'bg-stone-100 text-stone-400'}`}>{idx + 1}</span>
+                                    ) : sortedLeaderboard.length > 0 ? sortedLeaderboard.map((item, idx) => (
+                                        <div key={idx} className="flex items-center p-3 bg-stone-50/50 rounded-[15px] hover:bg-white hover:shadow-sm transition-all border border-transparent hover:border-stone-100 mb-1 font-sans">
+                                            <div className="w-[35%] flex items-center gap-2 overflow-hidden">
+                                                <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center font-black text-[9px] ${item.score >= 100 ? 'bg-amber-400 text-white' : 'bg-stone-200 text-stone-400'}`}>
+                                                    {sortConfig.field === 'score' && sortConfig.direction === 'desc' ? idx + 1 : '•'}
+                                                </span>
                                                 <div className="overflow-hidden">
-                                                    <div className="font-bold text-stone-800 text-sm truncate">{item.name}</div>
-                                                    <div className={`text-[8px] font-bold uppercase tracking-widest ${getRankInfo(item.score).color} truncate`}>
-                                                        {getRankInfo(item.score).icon} {getRankInfo(item.score).title}
+                                                    <div className="font-bold text-stone-800 text-xs truncate">{item.name}</div>
+                                                    <div className={`text-[7px] font-bold uppercase tracking-widest ${getRankInfo(item.score).color} truncate`}>
+                                                        {getRankInfo(item.score).title}
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="text-right flex-shrink-0 ml-2"><span className="font-black text-stone-900 text-xl">{item.score}</span></div>
+                                            <div className="w-[15%] text-center"><span className="font-black text-stone-900 text-sm">{item.score}</span></div>
+                                            {/* 正確顯示年月日 */}
+                                            <div className="w-[50%] text-right text-[10px] text-stone-400 tabular-nums font-bold">{item.date}</div>
                                         </div>
                                     )) : (
                                         <div className="text-center py-24 text-stone-400 flex flex-col items-center gap-4"><Trophy /><p className="text-xs tracking-widest text-center font-bold">目前尚無挑戰紀錄</p></div>
                                     )}
                                 </div>
-                                <button onClick={() => setView('home')} className="mt-6 w-full bg-stone-50 text-stone-400 font-bold py-3 rounded-full hover:bg-stone-100 transition-all text-xs tracking-widest text-center font-bold uppercase">離開榜單</button>
+                                <button onClick={() => setView('home')} className="mt-6 w-full bg-stone-50 text-stone-400 font-bold py-3 rounded-full hover:bg-stone-100 transition-all text-xs tracking-widest text-center font-bold uppercase font-sans">離開榜單</button>
                             </div>
                         )}
 
@@ -475,7 +496,7 @@
                                     <div className="text-center mb-4 text-stone-600">
                                         <p className="font-bold text-amber-600 mb-1 italic tracking-widest text-lg">🎉 結業成功！</p>
                                         <p className="text-base font-bold underline">請「長按下方證書」選擇「儲存照片」</p>
-                                        <p className="text-xs text-stone-400 mt-1 italic">若視窗空白請稍候 3 秒...</p>
+                                        <p className="text-xs text-stone-400 mt-1 italic font-sans">若視窗空白請稍候...</p>
                                     </div>
                                     <div className="border-4 border-amber-100 rounded-xl overflow-hidden shadow-inner bg-stone-50">
                                         <img src={savedImageUrl} alt="Certificate PNG" className="saveable-image" />
@@ -484,7 +505,6 @@
                                 </div>
                             </div>
                         )}
-
                     </div>
                 </div>
             );
