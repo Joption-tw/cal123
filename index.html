@@ -45,8 +45,8 @@
         .certificate-container {
             background-color: #fdf8f1; 
             background-image: 
-                repeating-linear-gradient(rgba(0,0,0,0.015) 0px, rgba(0,0,0,0.015) 1px, transparent 1px, transparent 3px),
-                repeating-linear-gradient(90deg, rgba(0,0,0,0.015) 0px, rgba(0,0,0,0.015) 1px, transparent 1px, transparent 3px);
+                repeating-linear-gradient(rgba(0,0,0,0.01) 0px, rgba(0,0,0,0.01) 1px, transparent 1px, transparent 3px),
+                repeating-linear-gradient(90deg, rgba(0,0,0,0.01) 0px, rgba(0,0,0,0.01) 1px, transparent 1px, transparent 3px);
             border: 3.5px solid #a37b45;
             position: relative;
             overflow: hidden;
@@ -105,16 +105,17 @@
             }
         }
 
+        /* 儲存預覽模態框 */
         .modal-backdrop {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.9);
-            z-index: 200;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 15px;
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(10px);
             animation: fadeIn 0.3s ease-out;
         }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -159,7 +160,7 @@
             const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
             const [errorMessage, setErrorMessage] = useState('');
             const [isSaving, setIsSaving] = useState(false);
-            const [savedImage, setSavedImage] = useState(null);
+            const [savedImageUrl, setSavedImageUrl] = useState(null);
 
             const formRef = useRef(null);
             const certificateRef = useRef(null);
@@ -202,7 +203,7 @@
             };
 
             const startQuiz = () => {
-                if (!playerName.trim()) return setErrorMessage("請輸入冒險者名稱");
+                if (!playerName.trim()) return setErrorMessage("請輸入您的姓名");
                 setErrorMessage('');
                 const qBank = [
                     { q: "關於選擇權，買方（Buy）與賣方（Sell）的風險敘述何者正確？", a: ["買方風險有限，賣方風險無限", "賣方風險有限，買方風險無限", "兩者風險皆為無限", "兩者風險皆為有限"], correct: 0 },
@@ -232,7 +233,7 @@
                 try {
                     window.scrollTo(0, 0);
                     const canvas = await html2canvas(certificateRef.current, {
-                        scale: 5, 
+                        scale: 3, 
                         useCORS: true,
                         allowTaint: true,
                         backgroundColor: "#fdf8f1",
@@ -244,22 +245,24 @@
                                 clonedOuter.style.transform = 'none';
                                 clonedOuter.style.boxShadow = 'none';
                                 clonedOuter.style.margin = '0';
-                                clonedOuter.style.width = '700px';
-                                clonedOuter.style.height = '990px';
                             }
                         }
                     });
-                    const dataUrl = canvas.toDataURL("image/png", 1.0);
-                    setSavedImage(dataUrl);
-                    
-                    const link = document.createElement('a');
-                    link.download = `歐大選擇權教室_結業證書_${playerName}.png`;
-                    link.href = dataUrl;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+
+                    canvas.toBlob((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        setSavedImageUrl(url);
+                        
+                        const link = document.createElement('a');
+                        link.download = `歐大選擇權教室_結業證書_${playerName}.png`;
+                        link.href = url;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }, 'image/png', 1.0);
+
                 } catch (err) { 
-                    setErrorMessage("圖片生成發生錯誤，請嘗試重新測驗。");
+                    setErrorMessage("圖片生成失敗，請稍後再試或直接截圖。");
                 } finally { 
                     setIsSaving(false); 
                 }
@@ -283,12 +286,15 @@
                         {/* 1. 首頁 */}
                         {view === 'home' && (
                             <div className="bg-white/90 backdrop-blur-md p-10 rounded-[30px] shadow-2xl border-4 border-white text-center fade-in">
-                                <div className="mb-8"><img src="IP標籤.jpg" alt="Logo" className="w-32 h-auto mx-auto border-4 border-white shadow-lg rounded-2xl" onError={(e) => e.target.src='https://via.placeholder.com/150?text=LOGO'} /></div>
+                                <div className="mb-8">
+                                    <img src="IP標籤.jpg" alt="Logo" className="w-32 h-auto mx-auto border-4 border-white shadow-lg rounded-2xl" 
+                                         onError={(e) => { e.target.onerror = null; e.target.src='https://www.google.com/s2/favicons?domain=joption.tw&sz=128'; }} />
+                                </div>
                                 <h1 className="text-3xl font-bold text-stone-900 mb-2">歐大選擇權教室</h1>
                                 <p className="text-stone-500 mb-10 italic text-center no-wrap">隨堂測驗 — 測驗你的期權實力</p>
                                 <div className="space-y-4 mb-8 text-left">
                                     <input type="text" placeholder="您的姓名，例如：歐大" className="w-full px-6 py-4 rounded-full border-2 border-stone-100 focus:border-amber-400 focus:outline-none text-lg bg-stone-50/50" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
-                                    <input type="email" placeholder="電子信箱，例如：Joption@gmail.com" className="w-full px-6 py-4 rounded-full border-2 border-stone-100 focus:border-amber-400 focus:outline-none text-lg bg-stone-50/50" value={playerEmail} onChange={(e) => setPlayerEmail(e.target.value)} />
+                                    <input type="email" placeholder="電子信箱 (選填)" className="w-full px-6 py-4 rounded-full border-2 border-stone-100 focus:border-amber-400 focus:outline-none text-lg bg-stone-50/50" value={playerEmail} onChange={(e) => setPlayerEmail(e.target.value)} />
                                     {errorMessage && <p className="text-red-500 text-sm font-bold text-center mt-2">{errorMessage}</p>}
                                 </div>
                                 <div className="space-y-3 px-2">
@@ -326,36 +332,36 @@
                                             <div className="watermark-overlay"></div>
                                             <div className="certificate-inner-border">
                                                 
-                                                {/* 1. Logo - 移至左上角固定 */}
+                                                {/* 1. Logo */}
                                                 <div style={{ position: 'absolute', top: '50px', left: '60px' }}>
-                                                    <img src="IP標籤.jpg" alt="Logo" className="w-20 h-auto border border-stone-200 shadow-sm" onError={(e) => e.target.src='https://via.placeholder.com/150?text=LOGO'} />
+                                                    <img src="IP標籤.jpg" alt="Logo" className="w-20 h-auto border border-stone-200 shadow-sm" onError={(e) => { e.target.onerror = null; e.target.src='https://www.google.com/s2/favicons?domain=joption.tw&sz=64'; }} />
                                                 </div>
 
                                                 {/* 2. 標題與章節 */}
                                                 <div style={{ marginTop: '40px', marginBottom: '0px' }} className="text-center">
                                                     <h1 className="text-6xl font-black text-stone-800 tracking-[0.25em] no-wrap" style={{ lineHeight: '1.1' }}>結業證書</h1>
-                                                    <div style={{ marginTop: '75px' }}>
+                                                    <div style={{ marginTop: '75px' }}> 
                                                         <p className="text-stone-400 text-2xl tracking-[0.4em] font-bold uppercase no-wrap">Chap 1 選擇權邏輯入門</p>
                                                     </div>
                                                 </div>
 
-                                                {/* 3. 茲證明 - 增加下方間距使姓名下移一格 (MB 35 -> 110) */}
-                                                <div style={{ marginBottom: '110px', marginTop: '20px' }} className="text-center">
-                                                    <p className="text-stone-500 text-3xl italic tracking-[0.2em] font-serif">茲證明</p>
+                                                {/* 3. 茲證明 */}
+                                                <div style={{ marginBottom: '60px', marginTop: '20px' }} className="text-center">
+                                                    <p className="text-stone-50 text-3xl italic tracking-[0.2em] font-serif">茲證明</p>
                                                 </div>
 
-                                                {/* 4. 姓名 - 減少下方間距補償位移以維持整體版面 (MB 115 -> 40) */}
-                                                <div style={{ marginBottom: '40px' }} className="text-center w-full">
+                                                {/* 4. 姓名 */}
+                                                <div style={{ marginBottom: '15px' }} className="text-center w-full">
                                                     <h2 className="text-5xl font-black text-stone-900 no-wrap tracking-widest">{playerName}</h2>
                                                 </div>
 
-                                                {/* 5. 參與文字 - 固定不動 */}
-                                                <div style={{ marginBottom: '45px' }} className="text-center">
+                                                {/* 5. 參與文字 */}
+                                                <div style={{ marginBottom: '40px' }} className="text-center">
                                                     <p className="text-stone-600 text-2xl tracking-widest font-serif">參與隨堂測驗，獲得成績：</p>
                                                 </div>
 
-                                                {/* 6. 分數與階級區塊 - 固定不動 */}
-                                                <div style={{ marginBottom: '75px' }} className="flex items-center justify-center gap-36 w-full">
+                                                {/* 6. 分數與階級 */}
+                                                <div style={{ marginBottom: '65px' }} className="flex items-center justify-center gap-36 w-full">
                                                     <div className="text-center">
                                                         <span className="text-lg text-stone-300 font-bold block mb-3 uppercase tracking-[0.3em]">分數</span>
                                                         <span className="text-8xl font-black text-amber-800 tabular-nums" style={{ lineHeight: '1' }}>{score}</span>
@@ -369,23 +375,24 @@
                                                     </div>
                                                 </div>
 
-                                                {/* 7. 結語 - 固定不動 */}
-                                                <div style={{ marginBottom: '65px' }} className="max-w-xl mx-auto text-center px-10">
+                                                {/* 7. 結語 */}
+                                                <div style={{ marginBottom: '55px' }} className="max-w-xl mx-auto text-center px-10">
                                                     <p className="text-stone-400 text-xl leading-relaxed tracking-wider font-serif">
                                                         具備初階選擇權風險識別與<br/>
                                                         基本策略運用能力，特發此證。
                                                     </p>
                                                 </div>
 
-                                                {/* 8. 簽章與印章 - 鎖定底部位置 */}
-                                                <div style={{ position: 'absolute', bottom: '50px', left: '75px', right: '75px' }} className="flex justify-between items-end">
+                                                {/* 8. 簽章與日期 */}
+                                                <div style={{ position: 'absolute', bottom: '15px', left: '30px', right: '30px' }} className="flex justify-between items-end">
                                                     <div className="text-left text-base text-stone-400 font-sans leading-relaxed uppercase tracking-tighter">
                                                         DATE: {new Date().toLocaleDateString('zh-TW')}<br/>
                                                         NO: JOPT-ID-{Math.floor(Date.now()/1000)}
                                                     </div>
-                                                    <div className="relative flex items-center pr-6">
-                                                        <span className="text-stone-900 text-4xl font-black italic mr-4 no-wrap tracking-tighter">院長 歐大</span>
-                                                        {/* 紅色認證印章 */}
+                                                    
+                                                    {/* 簽名與印章區域：依照要求靠左邊移動 2 格 (位移量設為 -25px, -25px 以實現相對於原先偏右位置的左移效果) */}
+                                                    <div className="relative flex items-center" style={{ transform: 'translate(-25px, -25px)' }}>
+                                                        <span className="text-stone-900 text-4xl font-black italic no-wrap tracking-tighter">院長 歐大</span>
                                                         <div style={{ 
                                                             width: '110px', 
                                                             height: '110px', 
@@ -393,7 +400,7 @@
                                                             borderRadius: '50%',
                                                             position: 'absolute',
                                                             top: '-55px',
-                                                            right: '-65px',
+                                                            right: '-45px',
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             justifyContent: 'center',
@@ -424,7 +431,6 @@
                             </div>
                         )}
 
-                        {/* 排行榜 */}
                         {view === 'leaderboard' && (
                             <div className="bg-white/95 backdrop-blur-md p-10 rounded-[40px] max-h-[85vh] flex flex-col shadow-2xl border-4 border-white fade-in mx-auto max-w-md text-center">
                                 <div className="flex justify-between items-center mb-8 border-b border-stone-100 pb-6">
@@ -435,7 +441,7 @@
                                     {isLoadingLeaderboard ? (
                                         <div className="text-center py-24 text-stone-300 flex flex-col items-center gap-4"><Loader className="w-8 h-8 text-stone-300" /><p className="text-[10px] tracking-widest uppercase text-center font-bold">數據讀取中...</p></div>
                                     ) : leaderboard.length > 0 ? leaderboard.map((item, idx) => (
-                                        <div key={item.id || idx} className="flex items-center justify-between p-5 bg-stone-50/50 rounded-[25px] hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-stone-100">
+                                        <div key={idx} className="flex items-center justify-between p-5 bg-stone-50/50 rounded-[25px] hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-stone-100">
                                             <div className="flex items-center gap-5 overflow-hidden">
                                                 <span className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${idx === 0 ? 'bg-[#8baeb2] text-white shadow-lg' : 'bg-stone-100 text-stone-400'}`}>{idx + 1}</span>
                                                 <div className="overflow-hidden">
@@ -456,19 +462,19 @@
                         )}
 
                         {/* 下載成功預覽 */}
-                        {savedImage && (
-                            <div className="modal-backdrop" onClick={() => setSavedImage(null)}>
+                        {savedImageUrl && (
+                            <div className="modal-backdrop" onClick={() => setSavedImageUrl(null)}>
                                 <div className="bg-white p-5 rounded-3xl max-w-sm w-full animate-in zoom-in duration-200 shadow-2xl relative" onClick={e => e.stopPropagation()}>
-                                    <button onClick={() => setSavedImage(null)} className="absolute -top-12 right-0 text-white flex items-center gap-1 font-bold">關閉 <X /></button>
+                                    <button onClick={() => setSavedImageUrl(null)} className="absolute -top-12 right-0 text-white flex items-center gap-1 font-bold">關閉 <X /></button>
                                     <div className="text-center mb-4 text-stone-600">
                                         <p className="font-bold text-amber-600 mb-1 italic tracking-widest text-lg">🎉 結業成功！</p>
                                         <p className="text-base font-bold">手機用戶：請「長按圖片」選擇「儲存照片」</p>
-                                        <p className="text-sm text-stone-400 mt-1">若此視窗為空白，請嘗試重新點擊下載</p>
+                                        <p className="text-sm text-stone-400 mt-1 italic">若視窗空白請稍候，或再次點擊下載</p>
                                     </div>
                                     <div className="border border-stone-100 rounded-xl overflow-hidden shadow-inner bg-stone-50">
-                                        <img src={savedImage} alt="Certificate Preview" className="w-full h-auto block select-none touch-none" onContextMenu={(e) => e.stopPropagation()} />
+                                        <img src={savedImageUrl} alt="Certificate Preview" className="w-full h-auto block" />
                                     </div>
-                                    <button onClick={() => setSavedImage(null)} className="mt-6 w-full py-4 bg-[#8baeb2] text-white rounded-xl font-bold hover:bg-[#6c8f93] transition-colors font-serif shadow-lg text-lg">我已儲存，返回挑戰</button>
+                                    <button onClick={() => setSavedImageUrl(null)} className="mt-6 w-full py-4 bg-[#8baeb2] text-white rounded-xl font-bold hover:bg-[#6c8f93] transition-colors font-serif shadow-lg text-lg">我已儲存，返回挑戰</button>
                                 </div>
                             </div>
                         )}
