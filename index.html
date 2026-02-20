@@ -109,13 +109,13 @@
         .modal-backdrop {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.95);
+            background: rgba(0,0,0,0.9);
             z-index: 1000;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 15px;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(8px);
             animation: fadeIn 0.3s ease-out;
         }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -126,6 +126,15 @@
             font-family: 'Noto Serif TC', serif;
         }
         .btn-ghibli:active { transform: scale(0.95); }
+        
+        /* 確保產出的圖片在手機上可以被選取與儲存 */
+        .saveable-image {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            user-select: auto !important;
+            -webkit-user-select: auto !important;
+        }
     </style>
 </head>
 <body>
@@ -233,7 +242,7 @@
                 try {
                     window.scrollTo(0, 0);
                     const canvas = await html2canvas(certificateRef.current, {
-                        scale: 3, 
+                        scale: 3, // 平衡清晰度與手機性能，防止全白
                         useCORS: true,
                         allowTaint: true,
                         backgroundColor: "#fdf8f1",
@@ -249,20 +258,20 @@
                         }
                     });
 
-                    canvas.toBlob((blob) => {
-                        const url = URL.createObjectURL(blob);
-                        setSavedImageUrl(url);
-                        
-                        const link = document.createElement('a');
-                        link.download = `歐大選擇權教室_結業證書_${playerName}.png`;
-                        link.href = url;
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    }, 'image/png', 1.0);
+                    // 轉換為高品質 DataURL
+                    const dataUrl = canvas.toDataURL("image/png", 1.0);
+                    setSavedImageUrl(dataUrl);
+                    
+                    // 電腦端嘗試下載
+                    const link = document.createElement('a');
+                    link.download = `歐大選擇權教室_結業證書_${playerName}.png`;
+                    link.href = dataUrl;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
 
                 } catch (err) { 
-                    setErrorMessage("圖片生成失敗，請稍後再試或直接截圖。");
+                    setErrorMessage("圖片生成失敗，建議使用螢幕截圖儲存。");
                 } finally { 
                     setIsSaving(false); 
                 }
@@ -283,7 +292,7 @@
 
                     <div className="relative w-full max-w-lg z-10 py-4">
                         
-                        {/* 1. 首頁 */}
+                        {/* 首頁 */}
                         {view === 'home' && (
                             <div className="bg-white/90 backdrop-blur-md p-10 rounded-[30px] shadow-2xl border-4 border-white text-center fade-in">
                                 <div className="mb-8">
@@ -304,7 +313,7 @@
                             </div>
                         )}
 
-                        {/* 2. 測驗中 */}
+                        {/* 測驗中 */}
                         {view === 'quiz' && (
                             <div className="bg-white p-8 rounded-[30px] shadow-xl border-4 border-white fade-in">
                                 <div className="flex justify-between items-center mb-10 text-stone-400 font-bold text-[10px] tracking-widest uppercase">
@@ -334,7 +343,8 @@
                                                 
                                                 {/* 1. Logo */}
                                                 <div style={{ position: 'absolute', top: '50px', left: '60px' }}>
-                                                    <img src="IP標籤.jpg" alt="Logo" className="w-20 h-auto border border-stone-200 shadow-sm" onError={(e) => { e.target.onerror = null; e.target.src='https://www.google.com/s2/favicons?domain=joption.tw&sz=64'; }} />
+                                                    <img src="IP標籤.jpg" alt="Logo" className="w-20 h-auto border border-stone-200 shadow-sm" 
+                                                         onError={(e) => { e.target.onerror = null; e.target.src='https://www.google.com/s2/favicons?domain=joption.tw&sz=64'; }} />
                                                 </div>
 
                                                 {/* 2. 標題與章節 */}
@@ -390,7 +400,6 @@
                                                         NO: JOPT-ID-{Math.floor(Date.now()/1000)}
                                                     </div>
                                                     
-                                                    {/* 簽名與印章區域：依照要求靠左邊移動 2 格 (位移量設為 -25px, -25px 以實現相對於原先偏右位置的左移效果) */}
                                                     <div className="relative flex items-center" style={{ transform: 'translate(-25px, -25px)' }}>
                                                         <span className="text-stone-900 text-4xl font-black italic no-wrap tracking-tighter">院長 歐大</span>
                                                         <div style={{ 
@@ -461,20 +470,21 @@
                             </div>
                         )}
 
-                        {/* 下載成功預覽 */}
+                        {/* 下載成功預覽視窗 - 點擊下載按鈕後才會出現這張圖片 */}
                         {savedImageUrl && (
                             <div className="modal-backdrop" onClick={() => setSavedImageUrl(null)}>
                                 <div className="bg-white p-5 rounded-3xl max-w-sm w-full animate-in zoom-in duration-200 shadow-2xl relative" onClick={e => e.stopPropagation()}>
                                     <button onClick={() => setSavedImageUrl(null)} className="absolute -top-12 right-0 text-white flex items-center gap-1 font-bold">關閉 <X /></button>
                                     <div className="text-center mb-4 text-stone-600">
                                         <p className="font-bold text-amber-600 mb-1 italic tracking-widest text-lg">🎉 結業成功！</p>
-                                        <p className="text-base font-bold">手機用戶：請「長按圖片」選擇「儲存照片」</p>
-                                        <p className="text-sm text-stone-400 mt-1 italic">若視窗空白請稍候，或再次點擊下載</p>
+                                        <p className="text-base font-bold underline">請「長按下方證書」選擇「儲存照片」</p>
+                                        <p className="text-xs text-stone-400 mt-1 italic">若視窗空白請稍候 3 秒...</p>
                                     </div>
-                                    <div className="border border-stone-100 rounded-xl overflow-hidden shadow-inner bg-stone-50">
-                                        <img src={savedImageUrl} alt="Certificate Preview" className="w-full h-auto block" />
+                                    <div className="border-4 border-amber-100 rounded-xl overflow-hidden shadow-inner bg-stone-50">
+                                        {/* 這是真正的圖片檔案，支援手機系統的原生儲存功能 */}
+                                        <img src={savedImageUrl} alt="Certificate PNG" className="saveable-image" />
                                     </div>
-                                    <button onClick={() => setSavedImageUrl(null)} className="mt-6 w-full py-4 bg-[#8baeb2] text-white rounded-xl font-bold hover:bg-[#6c8f93] transition-colors font-serif shadow-lg text-lg">我已儲存，返回挑戰</button>
+                                    <button onClick={() => setSavedImageUrl(null)} className="mt-6 w-full py-4 bg-[#8baeb2] text-white rounded-xl font-bold hover:bg-[#6c8f93] transition-colors font-serif shadow-lg text-lg">儲存完成，返回挑戰</button>
                                 </div>
                             </div>
                         )}
