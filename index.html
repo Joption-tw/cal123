@@ -82,12 +82,12 @@
         
         .no-wrap { white-space: nowrap; }
 
-        /* 姓名底線 - 預設下移 3 格 */
+        /* 姓名底線 - 依照要求往下移動 3 格 */
         .name-underline {
             width: 400px;
-            height: 1px;
+            height: 1.5px;
             background-color: #d1d5db;
-            margin: 42px auto 0; /* 原 12px + 30px(3格) */
+            margin: 45px auto 0; /* 調降位置 */
         }
 
         /* 勳章與光環特效 */
@@ -113,23 +113,27 @@
             }
         }
 
+        /* 儲存預覽模態框 - 手機長按儲存的關鍵 */
         .modal-backdrop {
             position: fixed;
             inset: 0;
             background: rgba(0,0,0,0.9);
-            z-index: 100;
+            z-index: 200;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 15px;
             backdrop-filter: blur(8px);
+            animation: fadeIn 0.3s ease-out;
         }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
         .btn-ghibli {
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             border-radius: 99px;
             font-family: 'Noto Serif TC', serif;
         }
+        .btn-ghibli:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
@@ -230,18 +234,21 @@
                 }
             };
 
+            // 存檔功能修復：強制彈出高品質圖片，並提示長按儲存
             const saveAsImage = async () => {
                 if (!certificateRef.current || isSaving) return;
                 setIsSaving(true);
+                setErrorMessage("");
                 try {
                     window.scrollTo(0, 0);
                     const canvas = await html2canvas(certificateRef.current, {
-                        scale: 5, 
+                        scale: 5, // 維持超高品質 5 倍採樣
                         useCORS: true,
                         allowTaint: true,
                         backgroundColor: "#fdf8f1",
                         width: 700,
                         height: 990,
+                        logging: false,
                         onclone: (clonedDoc) => {
                             const clonedOuter = clonedDoc.querySelector('.certificate-outer');
                             if (clonedOuter) {
@@ -255,13 +262,19 @@
                     });
                     const dataUrl = canvas.toDataURL("image/png", 1.0);
                     setSavedImage(dataUrl);
+                    
+                    // 同時嘗試自動下載 (電腦端適用)
                     const link = document.createElement('a');
                     link.download = `歐大選擇權教室_結業證書_${playerName}.png`;
                     link.href = dataUrl;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                } catch (err) { alert("儲存失敗，請直接截圖保存。"); } finally { setIsSaving(false); }
+                } catch (err) { 
+                    setErrorMessage("圖片生成發生錯誤，請嘗試重新測驗。");
+                } finally { 
+                    setIsSaving(false); 
+                }
             };
 
             const rank = getRankInfo(score);
@@ -282,7 +295,7 @@
                         {/* 1. 首頁 */}
                         {view === 'home' && (
                             <div className="bg-white/90 backdrop-blur-md p-10 rounded-[30px] shadow-2xl border-4 border-white text-center fade-in">
-                                <div className="mb-8"><img src="IP標籤.jpg" alt="Logo" className="w-32 h-auto mx-auto border-4 border-white shadow-lg rounded-2xl" /></div>
+                                <div className="mb-8"><img src="IP標籤.jpg" alt="Logo" className="w-32 h-auto mx-auto border-4 border-white shadow-lg rounded-2xl" onError={(e) => e.target.src='https://via.placeholder.com/150?text=LOGO'} /></div>
                                 <h1 className="text-3xl font-bold text-stone-900 mb-2">歐大選擇權教室</h1>
                                 <p className="text-stone-500 mb-10 italic text-center no-wrap">隨堂測驗 — 測驗你的期權實力</p>
                                 <div className="space-y-4 mb-8 text-left">
@@ -325,36 +338,36 @@
                                             <div className="watermark-overlay"></div>
                                             <div className="certificate-inner-border">
                                                 
-                                                {/* 1. Logo - 移至左上角 */}
+                                                {/* 1. Logo - 左上角固定 */}
                                                 <div style={{ position: 'absolute', top: '50px', left: '60px' }}>
-                                                    <img src="IP標籤.jpg" alt="Logo" className="w-20 h-auto border border-stone-200" />
+                                                    <img src="IP標籤.jpg" alt="Logo" className="w-20 h-auto border border-stone-200 shadow-sm" onError={(e) => e.target.src='https://via.placeholder.com/150?text=LOGO'} />
                                                 </div>
 
-                                                {/* 2. 標題與章節 - 章節文字下移 3 格 (marginTop 15 -> 45), 容器底部補償 (MB 45 -> 15) */}
-                                                <div style={{ marginTop: '55px', marginBottom: '15px' }} className="text-center">
+                                                {/* 2. 標題與章節 - 上移與下移微調 */}
+                                                <div style={{ marginTop: '40px', marginBottom: '0px' }} className="text-center">
                                                     <h1 className="text-6xl font-black text-stone-800 tracking-[0.25em] no-wrap" style={{ lineHeight: '1.1' }}>結業證書</h1>
-                                                    <div style={{ marginTop: '45px' }}>
+                                                    <div style={{ marginTop: '75px' }}> {/* CHAP 文字往下移 3 格 */}
                                                         <p className="text-stone-400 text-sm tracking-[0.4em] font-bold uppercase no-wrap">Chap 1 選擇權邏輯入門</p>
                                                     </div>
                                                 </div>
 
-                                                {/* 3. 茲證明 - 位置調整 */}
-                                                <div style={{ marginBottom: '0px' }} className="text-center">
-                                                    <p className="text-stone-50 text-2xl italic tracking-[0.2em] font-serif">茲證明</p>
+                                                {/* 3. 茲證明 - 隨文字上移 */}
+                                                <div style={{ marginBottom: '10px', marginTop: '20px' }} className="text-center">
+                                                    <p className="text-stone-500 text-2xl italic tracking-[0.2em] font-serif">茲證明</p>
                                                 </div>
 
-                                                {/* 4. 姓名與橫線 - 增加下方間距補償位移量 (MB 150 -> 120) */}
-                                                <div style={{ marginBottom: '120px' }} className="text-center w-full">
+                                                {/* 4. 姓名與底線 - 上移與底線下移 */}
+                                                <div style={{ marginBottom: '140px' }} className="text-center w-full">
                                                     <h2 className="text-5xl font-black text-stone-900 no-wrap tracking-widest">{playerName}</h2>
-                                                    <div className="name-underline"></div>
+                                                    <div className="name-underline"></div> {/* 此底線已在 CSS 設為往下 3 格 */}
                                                 </div>
 
-                                                {/* 5. 參與文字 - 位置保持不變 */}
+                                                {/* 5. 參與文字 - 固定不動 */}
                                                 <div style={{ marginBottom: '45px' }} className="text-center">
                                                     <p className="text-stone-600 text-xl tracking-widest font-serif">參與隨堂測驗，獲得成績：</p>
                                                 </div>
 
-                                                {/* 6. 分數與階級區塊 - 位置保持不變 */}
+                                                {/* 6. 分數與階級區塊 - 固定不動 */}
                                                 <div style={{ marginBottom: '75px' }} className="flex items-center justify-center gap-36 w-full">
                                                     <div className="text-center">
                                                         <span className="text-[12px] text-stone-300 font-bold block mb-3 uppercase tracking-[0.3em]">分數</span>
@@ -369,7 +382,7 @@
                                                     </div>
                                                 </div>
 
-                                                {/* 7. 結語 - 位置保持不變 */}
+                                                {/* 7. 結語 - 固定不動 */}
                                                 <div style={{ marginBottom: '65px' }} className="max-w-sm mx-auto text-center px-10">
                                                     <p className="text-stone-400 text-base leading-relaxed tracking-wider font-serif">
                                                         具備初階選擇權風險識別與<br/>
@@ -377,7 +390,7 @@
                                                     </p>
                                                 </div>
 
-                                                {/* 8. 簽章與印章 - 鎖定底部位置不變 */}
+                                                {/* 8. 簽章與印章 - 固定底部位置 */}
                                                 <div style={{ position: 'absolute', bottom: '50px', left: '75px', right: '75px' }} className="flex justify-between items-end">
                                                     <div className="text-left text-[11px] text-stone-400 font-sans leading-relaxed uppercase tracking-tighter">
                                                         DATE: {new Date().toLocaleDateString('zh-TW')}<br/>
@@ -385,7 +398,6 @@
                                                     </div>
                                                     <div className="relative flex items-center pr-6">
                                                         <span className="text-stone-900 text-4xl font-black italic mr-4 no-wrap tracking-tighter">院長 歐大</span>
-                                                        {/* 紅色認證印章 */}
                                                         <div style={{ 
                                                             width: '110px', 
                                                             height: '110px', 
@@ -455,18 +467,20 @@
                             </div>
                         )}
 
-                        {/* 下載成功預覽 */}
+                        {/* 下載成功預覽：解決手機端存檔失敗的終極方案 */}
                         {savedImage && (
                             <div className="modal-backdrop" onClick={() => setSavedImage(null)}>
-                                <div className="bg-white p-4 rounded-2xl max-w-sm w-full animate-in zoom-in duration-200 shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                                <div className="bg-white p-5 rounded-3xl max-w-sm w-full animate-in zoom-in duration-200 shadow-2xl relative" onClick={e => e.stopPropagation()}>
                                     <button onClick={() => setSavedImage(null)} className="absolute -top-12 right-0 text-white flex items-center gap-1 font-bold">關閉 <X /></button>
                                     <div className="text-center mb-4 text-stone-600">
                                         <p className="font-bold text-amber-600 mb-1 italic tracking-widest">🎉 結業成功！</p>
-                                        <p className="text-sm font-bold">手機用戶：長按圖片點選「儲存」</p>
-                                        <p className="text-sm">電腦用戶：點擊圖片按右鍵「另存」</p>
+                                        <p className="text-sm font-bold">手機用戶：請「長按圖片」選擇「儲存照片」</p>
+                                        <p className="text-xs text-stone-400 mt-1">若此視窗為空白，請嘗試重新點擊下載</p>
                                     </div>
-                                    <img src={savedImage} alt="Certificate Preview" className="w-full rounded-lg shadow-lg border border-stone-200" />
-                                    <button onClick={() => setSavedImage(null)} className="mt-6 w-full py-4 bg-stone-100 text-stone-600 rounded-xl font-bold hover:bg-stone-200 transition-colors font-serif">儲存完成，關閉預覽</button>
+                                    <div className="border border-stone-100 rounded-xl overflow-hidden shadow-inner bg-stone-50">
+                                        <img src={savedImage} alt="Certificate Preview" className="w-full h-auto block select-none touch-none" onContextMenu={(e) => e.stopPropagation()} />
+                                    </div>
+                                    <button onClick={() => setSavedImage(null)} className="mt-6 w-full py-4 bg-[#8baeb2] text-white rounded-xl font-bold hover:bg-[#6c8f93] transition-colors font-serif shadow-lg">我已儲存，返回挑戰</button>
                                 </div>
                             </div>
                         )}
