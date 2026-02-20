@@ -133,6 +133,16 @@
 
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
     </style>
 </head>
 <body>
@@ -163,11 +173,13 @@
             const [playerEmail, setPlayerEmail] = useState('');
             const [currentQuestions, setCurrentQuestions] = useState([]);
             const [currentIndex, setCurrentIndex] = useState(0);
-            const [answers, setAnswers] = useState([]);
             const [score, setScore] = useState(0);
             const [leaderboard, setLeaderboard] = useState([]);
             const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
             const [errorMessage, setErrorMessage] = useState('');
+            const [quizFeedback, setQuizFeedback] = useState('');
+            const [feedbackKey, setFeedbackKey] = useState(0); // 用來強制重啟動畫的 Key
+            const [failedThisQuestion, setFailedThisQuestion] = useState(false);
             const [isSaving, setIsSaving] = useState(false);
             const [savedImageUrl, setSavedImageUrl] = useState(null);
             
@@ -197,11 +209,8 @@
                     const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
                     const cleanCols = cols.map(c => c.replace(/^"|"$/g, '').trim());
                     const rawTimestamp = cleanCols[0] || '';
-                    
-                    // 日期強力提取：優先尋找 YYYY/MM/DD 或 YYYY-MM-DD
-                    const dateMatch = rawTimestamp.match(/(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/);
+                    const dateMatch = rawTimestamp.match(/\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/);
                     const dateDisplay = dateMatch ? dateMatch[0] : rawTimestamp.split(' ')[0];
-
                     return { 
                         name: cleanCols[nameIdx] || "匿名玩家", 
                         score: parseInt(cleanCols[scoreIdx]) || 0, 
@@ -239,12 +248,8 @@
 
             const startQuiz = () => {
                 if (!playerName.trim()) return setErrorMessage("請輸入您的姓名");
-                
-                // Email 格式驗證
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                if (!playerEmail.trim() || !emailRegex.test(playerEmail)) {
-                    return setErrorMessage("請輸入正確的電子信箱格式");
-                }
+                if (!playerEmail.trim() || !emailRegex.test(playerEmail)) return setErrorMessage("請輸入正確的電子信箱格式");
 
                 setErrorMessage('');
                 const qBank = [
@@ -255,16 +260,41 @@
                     { q: "在期權交易中，「時間價值」的流逝（Theta）對哪一方最有利？", a: ["買方", "賣方", "證券商", "期交所"], correct: 1 }
                 ];
                 setCurrentQuestions([...qBank].sort(() => 0.5 - Math.random()));
-                setCurrentIndex(0); setAnswers([]); setScore(0); setView('quiz');
+                setCurrentIndex(0); setScore(0); setFailedThisQuestion(false); setView('quiz');
             };
 
             const handleAnswer = (idx) => {
-                const newAnswers = [...answers, idx]; setAnswers(newAnswers);
-                if (currentIndex < 4) { setCurrentIndex(currentIndex + 1); } 
-                else {
-                    let s = 0; currentQuestions.forEach((q, i) => { if (q.correct === newAnswers[i]) s += 20; });
-                    setScore(s); setView('result');
-                    setTimeout(() => { if (formRef.current) { formRef.current.submit(); fetchLeaderboard(); } }, 800);
+                const isCorrect = idx === currentQuestions[currentIndex].correct;
+                
+                if (isCorrect) {
+                    setQuizFeedback('');
+                    // 只有完全沒答錯過才得 20 分
+                    const finalScoreForThisQuestion = failedThisQuestion ? 0 : 20;
+                    const newScore = score + finalScoreForThisQuestion;
+                    setScore(newScore);
+
+                    if (currentIndex < 4) {
+                        setCurrentIndex(currentIndex + 1);
+                        setFailedThisQuestion(false);
+                    } else {
+                        setView('result');
+                        setTimeout(() => { 
+                            if (formRef.current) {
+                                formRef.current.submit(); 
+                                fetchLeaderboard(); 
+                            } 
+                        }, 800);
+                    }
+                } else {
+                    // 每次答錯：顯示錯誤、觸發震動動畫、觸發手機震動
+                    setQuizFeedback('答案錯誤，請再試一次！');
+                    setFeedbackKey(prev => prev + 1); // 強制重新載入 shake 元件
+                    setFailedThisQuestion(true);
+                    
+                    // 手機震動 (支援的手機設備)
+                    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                        navigator.vibrate(200);
+                    }
                 }
             };
 
@@ -284,14 +314,13 @@
                     const dataUrl = canvas.toDataURL("image/png", 1.0);
                     setSavedImageUrl(dataUrl);
                     
-                    // 電腦端嘗試自動下載
                     const link = document.createElement('a');
                     link.download = `結業證書_${playerName}.png`;
                     link.href = dataUrl;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
-                } catch (err) { setErrorMessage("生成失敗，建議使用截圖儲存。"); } finally { setIsSaving(false); }
+                } catch (err) { setErrorMessage("生成失敗，建議截圖儲存。"); } finally { setIsSaving(false); }
             };
 
             return (
@@ -307,7 +336,6 @@
 
                     <div className="relative w-full max-w-lg z-10 py-4">
                         
-                        {/* 1. 首頁 */}
                         {view === 'home' && (
                             <div className="bg-white/90 backdrop-blur-md p-10 rounded-[30px] shadow-2xl border-4 border-white text-center fade-in">
                                 <div className="mb-8">
@@ -328,14 +356,22 @@
                             </div>
                         )}
 
-                        {/* 2. 測驗中 */}
                         {view === 'quiz' && (
                             <div className="bg-white p-8 rounded-[30px] shadow-xl border-4 border-white fade-in">
-                                <div className="flex justify-between items-center mb-10 text-stone-400 font-bold text-[10px] tracking-widest uppercase">
+                                <div className="flex justify-between items-center mb-8 text-stone-400 font-bold text-[10px] tracking-widest uppercase">
                                     <span>進度 {currentIndex + 1} / 5</span>
                                     <div className="w-32 h-1.5 bg-stone-100 rounded-full overflow-hidden"><div className="h-full bg-[#8baeb2] transition-all duration-500" style={{ width: `${((currentIndex + 1) / 5) * 100}%` }}></div></div>
                                 </div>
-                                <h2 className="text-2xl font-bold mb-10 min-h-[5rem] leading-relaxed text-stone-800 text-left">{currentQuestions[currentIndex]?.q}</h2>
+                                
+                                <h2 className="text-2xl font-bold mb-8 min-h-[5rem] leading-relaxed text-stone-800 text-left">{currentQuestions[currentIndex]?.q}</h2>
+                                
+                                {/* 答錯提醒：加入 key 屬性以確保每次觸發 shake 動畫 */}
+                                {quizFeedback && (
+                                    <div key={feedbackKey} className="mb-6 p-3 bg-red-50 border border-red-100 rounded-xl text-red-500 text-center font-bold text-sm shake">
+                                        {quizFeedback}
+                                    </div>
+                                )}
+
                                 <div className="space-y-4 text-left">
                                     {currentQuestions[currentIndex]?.a.map((opt, i) => (
                                         <button key={i} onClick={() => handleAnswer(i)} className="w-full text-left p-6 border-2 border-stone-50 hover:border-[#8baeb2] hover:bg-[#8baeb2]/5 rounded-3xl flex items-center transition-all">
@@ -347,7 +383,6 @@
                             </div>
                         )}
 
-                        {/* 3. 結業證書結果 */}
                         {view === 'result' && (
                             <div className="space-y-6 fade-in flex flex-col items-center text-center">
                                 <div className="certificate-preview-scroll">
@@ -381,7 +416,7 @@
                                                     <div className="text-center">
                                                         <span className="text-lg text-stone-300 font-bold block mb-3 uppercase tracking-[0.3em] font-sans">授予階級</span>
                                                         <div className="flex flex-col items-center">
-                                                            <span className={`text-6xl mb-4`}>{getRankInfo(score).icon}</span>
+                                                            <span className="text-6xl mb-4">{getRankInfo(score).icon}</span>
                                                             <span className={`text-3xl font-black ${getRankInfo(score).color} no-wrap tracking-[0.2em]`}>{getRankInfo(score).title}</span>
                                                         </div>
                                                     </div>
@@ -414,7 +449,6 @@
                                     </div>
                                 </div>
 
-                                {/* 依照要求加入提示文字 */}
                                 <p className="text-stone-500 text-lg mt-4 font-bold tracking-widest bg-amber-50 px-6 py-2 rounded-full border border-amber-100 shadow-sm animate-pulse">
                                     手機請用截圖方式保存
                                 </p>
@@ -431,7 +465,6 @@
                             </div>
                         )}
 
-                        {/* 排行榜視圖 */}
                         {view === 'leaderboard' && (
                             <div className="bg-white/95 backdrop-blur-md p-6 rounded-[30px] max-h-[85vh] flex flex-col shadow-2xl border-4 border-white fade-in mx-auto max-w-md text-center">
                                 <div className="flex justify-between items-center mb-6 border-b border-stone-100 pb-4">
@@ -459,7 +492,6 @@
                                                     <div className={`text-[7px] font-bold uppercase ${getRankInfo(item.score).color} truncate`}>{getRankInfo(item.score).title}</div>
                                                 </div>
                                             </div>
-                                            {/* 分數置中對齊 */}
                                             <div className="w-[20%] text-center"><span className="font-black text-stone-900 text-base">{item.score}</span></div>
                                             <div className="w-[40%] text-right text-[10px] text-stone-400 tabular-nums font-bold">{item.date}</div>
                                         </div>
@@ -471,7 +503,7 @@
                             </div>
                         )}
 
-                        {/* 下載成功預覽模態框 - 改進長按支援 */}
+                        {/* 下載成功預覽視窗 */}
                         {savedImageUrl && (
                             <div className="modal-backdrop" onClick={() => setSavedImageUrl(null)}>
                                 <div className="bg-white p-5 rounded-3xl max-w-sm w-full shadow-2xl relative" onClick={e => e.stopPropagation()}>
@@ -479,10 +511,10 @@
                                     <div className="text-center mb-4 text-stone-600">
                                         <p className="font-bold text-amber-600 mb-1 italic text-lg tracking-widest">🎉 生成成功！</p>
                                         <p className="text-base font-bold underline">手機用戶請「長按下方圖片」儲存</p>
-                                        <p className="text-xs text-stone-400 mt-1">若看到文字代表正在載入，請稍候 3 秒</p>
+                                        <p className="text-xs text-stone-400 mt-1 italic">若視窗空白請稍候 3 秒，系統正在渲染高品質圖片</p>
                                     </div>
                                     <div className="border-4 border-amber-50 rounded-xl overflow-hidden bg-white">
-                                        <img src={savedImageUrl} alt="Certificate Image" className="saveable-img" />
+                                        <img src={savedImageUrl} alt="Certificate Image" className="saveable-image" />
                                     </div>
                                     <button onClick={() => setSavedImageUrl(null)} className="mt-6 w-full py-4 bg-[#8baeb2] text-white rounded-xl font-bold shadow-lg text-lg">完成存檔，返回挑戰</button>
                                 </div>
