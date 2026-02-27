@@ -3,91 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>稟軒會考衝刺首頁</title>
-    <!-- Tailwind CSS -->
+    <title>稟軒會考衝刺首頁 - 神之一手</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React & Babel -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
-        
         body { margin: 0; padding: 0; overflow-x: hidden; font-family: 'Noto Sans TC', sans-serif; }
-        
-        /* 鮮艷的背景：木質紋理加上神芒光澤 */
-        .vibrant-bg {
-            background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%);
-            position: relative;
-        }
-
-        .go-board-overlay {
-            position: fixed;
-            inset: 0;
-            background-image: 
-                linear-gradient(#8b4513 0.5px, transparent 0.5px),
-                linear-gradient(90deg, #8b4513 0.5px, transparent 0.5px);
-            background-size: 40px 40px;
-            opacity: 0.1;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* 神之一手發光效果 */
-        .divine-glow {
-            box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
-            animation: pulse-glow 3s infinite;
-        }
-
-        @keyframes pulse-glow {
-            0% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.3); }
-            50% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.6); }
-            100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.3); }
-        }
-
-        /* 紅色發光效果 (專屬天數) */
-        .divine-glow-red {
-            box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
-            animation: pulse-glow-red 3s infinite;
-        }
-
-        @keyframes pulse-glow-red {
-            0% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
-            50% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.6); }
-            100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
-        }
-
-        .glass-card {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-        }
-
-        .loading-overlay {
-            position: fixed; inset: 0; background: #2D2D2D;
-            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
-        }
-
-        .spinner {
-            width: 50px; height: 50px; border: 5px solid #4b0082;
-            border-top: 5px solid #ffd700; border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .vibrant-bg { background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%); position: relative; }
+        .go-board-overlay { position: fixed; inset: 0; background-size: 40px 40px; opacity: 0.1; pointer-events: none; z-index: 0; background-image: linear-gradient(#8b4513 0.5px, transparent 0.5px), linear-gradient(90deg, #8b4513 0.5px, transparent 0.5px); }
+        .divine-glow-red { box-shadow: 0 0 20px rgba(239, 68, 68, 0.4); animation: pulse-glow-red 3s infinite; }
+        @keyframes pulse-glow-red { 0%, 100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.3); } 50% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.6); } }
+        .glass-card { background: rgba(255, 255, 255, 0.88); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.5); }
+        .category-國文 { background-color: #ef4444; color: white; }
+        .category-英文 { background-color: #3b82f6; color: white; }
+        .category-數學 { background-color: #f59e0b; color: white; }
+        .category-自然 { background-color: #10b981; color: white; }
+        .category-社會 { background-color: #8b5cf6; color: white; }
+        .category-其他 { background-color: #6b7280; color: white; }
+        .answer-badge { background: #2D2D2D; color: #FFD700; padding: 2px 8px; border-radius: 6px; font-weight: 900; border: 1px solid #FFD700; }
     </style>
 </head>
 <body class="vibrant-bg min-h-screen">
-    <div id="root">
-        <div class="loading-overlay">
-            <div class="spinner"></div>
-            <p class="text-white mt-4 font-bold tracking-widest">正在為稟軒佈局神之一手...</p>
-        </div>
-    </div>
+    <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        const { useState, useEffect, useMemo, useCallback } = React;
+        const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
         const myFirebaseConfig = {
             apiKey: "AIzaSyAo6qGtng1z3SAn86wMrtFKLkVmPPCEVSU",
@@ -103,43 +46,24 @@
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        let db, auth;
-        try {
-            const app = initializeApp(myFirebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-        } catch (e) { console.error(e); }
+        const app = initializeApp(myFirebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
         const ENCOURAGEMENTS = [
             "稟軒，這一步，就是通往理想高中的神之一手！",
             "為了將遙遠的過去與遙遠的未來連接起來，此刻的努力絕不白費！",
             "心如止水，專注落子。會考的棋局，你必能勝出！",
-            "穩紮穩打，基礎就是你最強的定石，加油！",
             "不要害怕失誤，佐為會在背後守護著你的每一分努力！",
             "燃燒吧！像進藤光一樣，在考場上下出驚豔全場的好棋！",
-            "現在的辛苦是為了迎接終局的勝利，稟軒衝啊！",
-            "保持呼吸的節奏，就像圍棋的氣，穩住就能贏！",
-            "稟軒加油，你比昨天的自己更強大了！",
-            "每一道習題都是一顆落子，積沙成塔，神之境地就在眼前。"
+            "穩紮穩打，基礎就是你最強的定石，加油！"
         ];
+
+        const SUBJECTS = ["國文", "英文", "數學", "自然", "社會", "其他"];
 
         const Icon = ({ name, size = 20, className = "" }) => {
             useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
             return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
-        };
-
-        const TimeUnit = ({ label, value }) => {
-            const isDays = label === "天";
-            return (
-                <div className="flex flex-col items-center">
-                    <div className={`bg-gradient-to-b from-stone-800 to-black rounded-2xl w-full py-2 md:py-3 border-2 ${isDays ? 'border-red-500 divine-glow-red' : 'border-amber-500 divine-glow'} shadow-xl`}>
-                        <span className={`text-2xl md:text-4xl font-black tabular-nums ${isDays ? 'text-red-500' : 'text-amber-400'}`}>
-                            {String(value).padStart(2, '0')}
-                        </span>
-                    </div>
-                    <span className="mt-1 text-[10px] md:text-xs font-black text-stone-600 tracking-tighter uppercase">{label}</span>
-                </div>
-            );
         };
 
         const App = () => {
@@ -147,24 +71,42 @@
             const [tasks, setTasks] = useState([]);
             const [quote, setQuote] = useState("");
             const [timeLeft, setTimeLeft] = useState({ d: 0, h: 0, m: 0, s: 0 });
+            const [isLoading, setIsLoading] = useState(true);
+            const [previewImage, setPreviewImage] = useState(null);
+            const [selectedImg, setSelectedImg] = useState(null);
+
+            // Form States
             const [newTask, setNewTask] = useState("");
             const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
-            const [isLoading, setIsLoading] = useState(true);
+            const [newCategory, setNewCategory] = useState("國文");
+            const [ansType, setAnsType] = useState("A"); // A, B, C, D, Other
+            const [otherAns, setOtherAns] = useState("");
+            const fileInputRef = useRef(null);
 
             const targetDate = useMemo(() => new Date('2026-05-16T00:00:00'), []);
 
             const refreshQuote = useCallback(() => {
-                const randomIndex = Math.floor(Math.random() * ENCOURAGEMENTS.length);
-                setQuote(ENCOURAGEMENTS[randomIndex]);
+                setQuote(ENCOURAGEMENTS[Math.floor(Math.random() * ENCOURAGEMENTS.length)]);
             }, []);
 
             useEffect(() => {
-                const unsubscribe = onAuthStateChanged(auth, (u) => {
+                const unsubscribeAuth = onAuthStateChanged(auth, (u) => {
                     if (!u) signInAnonymously(auth);
                     setUser(u);
                 });
-                return unsubscribe;
-            }, []);
+                refreshQuote();
+                const timer = setInterval(() => {
+                    const diff = targetDate - new Date();
+                    if (diff <= 0) setTimeLeft({ d: 0, h: 0, m: 0, s: 0 });
+                    else setTimeLeft({
+                        d: Math.floor(diff / 86400000),
+                        h: Math.floor((diff / 3600000) % 24),
+                        m: Math.floor((diff / 60000) % 60),
+                        s: Math.floor((diff / 1000) % 60)
+                    });
+                }, 1000);
+                return () => { unsubscribeAuth(); clearInterval(timer); };
+            }, [refreshQuote, targetDate]);
 
             useEffect(() => {
                 if (!user) return;
@@ -177,28 +119,37 @@
                 });
             }, [user]);
 
-            useEffect(() => {
-                refreshQuote();
-                const timer = setInterval(() => {
-                    const diff = targetDate - new Date();
-                    if (diff <= 0) setTimeLeft({ d: 0, h: 0, m: 0, s: 0 });
-                    else setTimeLeft({
-                        d: Math.floor(diff / 86400000),
-                        h: Math.floor((diff / 3600000) % 24),
-                        m: Math.floor((diff / 60000) % 60),
-                        s: Math.floor((diff / 1000) % 60)
-                    });
-                }, 1000);
-                return () => clearInterval(timer);
-            }, [refreshQuote, targetDate]);
+            const handleImageChange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setPreviewImage(reader.result);
+                    reader.readAsDataURL(file);
+                }
+            };
 
             const addTask = async (e) => {
                 e.preventDefault();
                 if (!newTask.trim()) return;
-                await addDoc(collection(db, 'tasks'), {
-                    content: newTask, date: newDate, note: "", completed: false, createdAt: serverTimestamp()
-                });
-                setNewTask("");
+                setIsLoading(true);
+                const finalAnswer = ansType === "Other" ? otherAns : ansType;
+                try {
+                    await addDoc(collection(db, 'tasks'), {
+                        content: newTask,
+                        date: newDate,
+                        category: newCategory,
+                        imageUrl: previewImage || null,
+                        correctAnswer: previewImage ? finalAnswer : null,
+                        note: "",
+                        completed: false,
+                        createdAt: serverTimestamp()
+                    });
+                    setNewTask("");
+                    setPreviewImage(null);
+                    setOtherAns("");
+                    setAnsType("A");
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                } catch (e) { console.error(e); } finally { setIsLoading(false); }
             };
 
             const toggleComplete = async (task) => {
@@ -213,105 +164,179 @@
                 await deleteDoc(doc(db, 'tasks', id));
             };
 
-            if (isLoading && !user) return <div className="loading-overlay"><div className="spinner"></div></div>;
-
             return (
                 <div className="relative min-h-screen">
                     <div className="go-board-overlay"></div>
 
-                    {/* 頂部標題 */}
-                    <header className="bg-gradient-to-r from-indigo-900 via-stone-900 to-indigo-900 text-white py-4 md:py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
+                    {/* Image Viewer Modal */}
+                    {selectedImg && (
+                        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4" onClick={() => setSelectedImg(null)}>
+                            <img src={selectedImg} className="max-w-full max-h-full rounded-lg shadow-2xl" alt="大圖" />
+                            <div className="absolute top-6 right-6 text-white text-xl font-bold">點擊任何處關閉</div>
+                        </div>
+                    )}
+
+                    <header className="bg-gradient-to-r from-indigo-900 via-stone-900 to-indigo-900 text-white py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
                         <div className="max-w-4xl mx-auto">
-                            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg">
+                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg">
                                 <Icon name="flame" size={24} />
                                 <span>SAI ‧ 應試覺醒</span>
                             </div>
-                            <h1 className="text-2xl md:text-4xl font-black mb-4 tracking-tight">稟軒，迎接決戰棋局</h1>
-                            <div className="grid grid-cols-4 gap-2 md:gap-4 max-w-md mx-auto">
-                                <TimeUnit label="天" value={timeLeft.d} />
-                                <TimeUnit label="時" value={timeLeft.h} />
-                                <TimeUnit label="分" value={timeLeft.m} />
-                                <TimeUnit label="秒" value={timeLeft.s} />
+                            <h1 className="text-2xl md:text-3xl font-black mb-4 tracking-tight">稟軒，迎接決戰棋局</h1>
+                            <div className="grid grid-cols-4 gap-2 md:gap-4 max-w-sm mx-auto">
+                                <div className="flex flex-col items-center">
+                                    <div className="bg-stone-800 rounded-2xl w-full py-2 border-2 border-red-500 divine-glow-red">
+                                        <span className="text-3xl font-black text-red-500">{String(timeLeft.d).padStart(2, '0')}</span>
+                                    </div>
+                                    <span className="text-[10px] font-black text-stone-400 mt-1 uppercase">天</span>
+                                </div>
+                                {["時", "分", "秒"].map((label, i) => (
+                                    <div key={label} className="flex flex-col items-center">
+                                        <div className="bg-stone-800 rounded-2xl w-full py-2 border-2 border-amber-500">
+                                            <span className="text-3xl font-black text-amber-400">{String([timeLeft.h, timeLeft.m, timeLeft.s][i]).padStart(2, '0')}</span>
+                                        </div>
+                                        <span className="text-[10px] font-black text-stone-400 mt-1 uppercase">{label}</span>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </header>
 
-                    <main className="max-w-5xl mx-auto px-4 py-6 relative z-10">
-                        {/* 隨機金句卡 - 點擊閃電或卡片可更換內容 */}
-                        <section 
-                            onClick={refreshQuote}
-                            className="mb-6 bg-gradient-to-r from-amber-500 to-amber-600 p-5 rounded-3xl shadow-2xl relative overflow-hidden group border-b-4 border-stone-800 cursor-pointer hover:brightness-110 active:scale-[0.99] transition-all"
-                        >
-                            <div className="absolute right-4 top-2 z-20 group-hover:scale-110 active:scale-95 transition-transform duration-300">
-                                <Icon name="zap" size={60} className="text-white opacity-20 group-hover:opacity-60" />
-                            </div>
-                            <h2 className="text-white font-black text-xs uppercase tracking-tighter mb-1 drop-shadow-md flex items-center gap-1">
-                                佐為的叮嚀 <span className="text-[8px] opacity-70">(點擊更換)</span>
-                            </h2>
-                            <p className="text-lg md:text-2xl font-bold text-white leading-tight drop-shadow-md pr-12">「{quote}」</p>
+                    <main className="max-w-6xl mx-auto px-4 py-6 relative z-10">
+                        {/* Quote Section */}
+                        <section onClick={refreshQuote} className="mb-6 bg-gradient-to-r from-amber-500 to-amber-600 p-5 rounded-3xl shadow-xl border-b-4 border-stone-800 cursor-pointer hover:scale-[1.01] transition-all group">
+                            <Icon name="zap" size={48} className="absolute right-4 top-2 text-white opacity-20 group-hover:rotate-12 transition-transform" />
+                            <h2 className="text-white font-black text-xs uppercase mb-1">佐為的叮嚀</h2>
+                            <p className="text-lg md:text-2xl font-bold text-white leading-tight">「{quote}」</p>
                         </section>
 
-                        <section className="grid md:grid-cols-3 gap-6">
-                            {/* 媽媽 */}
-                            <div className="md:col-span-1">
+                        <div className="grid lg:grid-cols-12 gap-6">
+                            {/* Mother Input */}
+                            <div className="lg:col-span-4">
                                 <div className="glass-card p-5 rounded-3xl border-2 border-stone-800 shadow-xl sticky top-4">
-                                    <h2 className="font-black text-lg mb-4 flex items-center gap-2 text-stone-800">
-                                        <div className="w-4 h-4 rounded-full bg-black"></div>
-                                        佈局規劃 (媽媽)
+                                    <h2 className="font-black text-lg mb-4 flex items-center gap-2">
+                                        <div className="w-4 h-4 rounded-full bg-black"></div> 佈局規劃 (媽媽)
                                     </h2>
-                                    <form onSubmit={addTask} className="space-y-3">
-                                        <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full p-2.5 rounded-xl border-2 border-stone-200 focus:border-indigo-600 outline-none font-bold" />
-                                        <textarea placeholder="點擊落子輸入任務..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="2" className="w-full p-2.5 rounded-xl border-2 border-stone-200 focus:border-indigo-600 outline-none resize-none font-bold" />
-                                        <button type="submit" className="w-full bg-indigo-700 hover:bg-indigo-900 text-white py-3 rounded-2xl font-black text-base transition-all shadow-lg active:scale-95">
-                                            確認佈局
+                                    <form onSubmit={addTask} className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="p-2 rounded-xl border-2 border-stone-200 font-bold text-sm outline-none focus:border-indigo-500" />
+                                            <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className={`p-2 rounded-xl border-2 border-stone-200 font-bold text-sm outline-none category-${newCategory}`}>
+                                                {SUBJECTS.map(s => <option key={s} value={s} className="bg-white text-black">{s}</option>)}
+                                            </select>
+                                        </div>
+                                        <textarea placeholder="輸入任務內容..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="2" className="w-full p-2.5 rounded-xl border-2 border-stone-200 font-bold text-sm outline-none resize-none" />
+                                        
+                                        <div>
+                                            <button type="button" onClick={() => fileInputRef.current.click()} className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-stone-300 rounded-xl text-stone-500 hover:border-indigo-500 hover:text-indigo-500 transition-all font-bold text-xs">
+                                                <Icon name="image" size={16} /> {previewImage ? "已選取照片" : "上傳題目照片"}
+                                            </button>
+                                            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+                                        </div>
+
+                                        {previewImage && (
+                                            <div className="p-3 bg-stone-100 rounded-2xl animate-in zoom-in-95 duration-200">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="text-[10px] font-black text-stone-500 uppercase">設定題目答案</span>
+                                                    <button onClick={() => setPreviewImage(null)} className="text-red-500"><Icon name="trash-2" size={14} /></button>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2 mb-2">
+                                                    {["A", "B", "C", "D", "Other"].map(type => (
+                                                        <button 
+                                                            key={type} type="button"
+                                                            onClick={() => setAnsType(type)}
+                                                            className={`px-3 py-1 rounded-lg text-xs font-black border-2 transition-all ${ansType === type ? 'bg-black text-white border-black' : 'bg-white text-stone-500 border-stone-200'}`}
+                                                        >
+                                                            {type === "Other" ? "其他" : type}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                                {ansType === "Other" && (
+                                                    <input 
+                                                        type="text" placeholder="手動輸入答案 (如：25, 填空內容...)"
+                                                        value={otherAns} onChange={e => setOtherAns(e.target.value)}
+                                                        className="w-full p-2 rounded-lg border-2 border-indigo-200 text-xs font-bold outline-none"
+                                                    />
+                                                )}
+                                                <img src={previewImage} className="mt-2 w-full h-24 object-cover rounded-lg border border-stone-200" alt="預覽" />
+                                            </div>
+                                        )}
+
+                                        <button type="submit" disabled={!newTask.trim() || isLoading} className="w-full bg-indigo-700 hover:bg-indigo-900 text-white py-3 rounded-2xl font-black text-base shadow-lg transition-all active:scale-95 disabled:bg-stone-400">
+                                            {isLoading ? "對局準備中..." : "落子新增任務"}
                                         </button>
                                     </form>
                                 </div>
                             </div>
 
-                            {/* 稟軒 */}
-                            <div className="md:col-span-2">
-                                <h2 className="font-black text-lg mb-4 flex items-center gap-2 text-stone-800">
-                                    <div className="w-4 h-4 rounded-full bg-white border-2 border-stone-800 shadow-sm"></div>
-                                    實戰紀錄 (稟軒)
+                            {/* Bing-Xuan List */}
+                            <div className="lg:col-span-8">
+                                <h2 className="font-black text-lg mb-4 flex items-center gap-2">
+                                    <div className="w-4 h-4 rounded-full bg-white border-2 border-stone-800 shadow-sm"></div> 實戰紀錄 (稟軒)
                                 </h2>
-                                <div className="space-y-3">
+                                <div className="grid md:grid-cols-2 gap-4">
                                     {tasks.map(task => (
-                                        <div key={task.id} className={`p-4 rounded-2xl border-2 transition-all duration-300 glass-card shadow-md group ${task.completed ? 'border-green-400 bg-green-50/50' : 'border-stone-800'}`}>
-                                            <div className="flex justify-between items-center">
-                                                <div className="flex items-center gap-3">
-                                                    <button onClick={() => toggleComplete(task)} className={`transition-transform hover:scale-125 ${task.completed ? 'text-green-600' : 'text-stone-300 hover:text-amber-500'}`}>
-                                                        <Icon name={task.completed ? "check-circle-2" : "circle"} size={28} />
+                                        <div key={task.id} className={`flex flex-col rounded-3xl border-2 transition-all duration-300 glass-card shadow-md group overflow-hidden ${task.completed ? 'border-green-400 opacity-80' : 'border-stone-800 hover:shadow-2xl'}`}>
+                                            <div className={`p-3 flex items-center justify-between border-b ${task.completed ? 'bg-green-50/50' : 'bg-stone-50'}`}>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black category-${task.category}`}>{task.category}</span>
+                                                    <span className="text-[10px] text-stone-500 font-bold">{task.date}</span>
+                                                </div>
+                                                <button onClick={() => deleteTask(task.id)} className="opacity-0 group-hover:opacity-100 text-stone-300 hover:text-red-600 transition-opacity"><Icon name="trash-2" size={14} /></button>
+                                            </div>
+                                            
+                                            <div className="p-4 flex-1">
+                                                <div className="flex items-start gap-3">
+                                                    <button onClick={() => toggleComplete(task)} className={`mt-1 transition-transform hover:scale-125 ${task.completed ? 'text-green-600' : 'text-stone-300 hover:text-amber-500'}`}>
+                                                        <Icon name={task.completed ? "check-circle-2" : "circle"} size={26} />
                                                     </button>
-                                                    <div>
-                                                        <div className="text-[10px] text-indigo-700 font-black">{task.date}</div>
-                                                        <div className={`text-lg font-black ${task.completed ? 'line-through text-stone-400' : 'text-stone-900'}`}>{task.content}</div>
+                                                    <div className="flex-1">
+                                                        <p className={`text-base font-black leading-tight ${task.completed ? 'line-through text-stone-400' : 'text-stone-900'}`}>{task.content}</p>
+                                                        {task.correctAnswer && !task.completed && (
+                                                            <div className="mt-2 flex items-center gap-2">
+                                                                <span className="text-[10px] font-bold text-stone-400">正確答案：</span>
+                                                                <span className="answer-badge">{task.correctAnswer}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <button onClick={() => deleteTask(task.id)} className="opacity-0 group-hover:opacity-100 text-stone-300 hover:text-red-600 p-2"><Icon name="trash-2" size={18} /></button>
+
+                                                {task.imageUrl && (
+                                                    <div className="mt-3 relative cursor-zoom-in" onClick={() => setSelectedImg(task.imageUrl)}>
+                                                        <img src={task.imageUrl} className="w-full h-40 object-cover rounded-2xl border border-stone-200 shadow-sm" alt="題目" />
+                                                        <div className="absolute bottom-2 right-2 bg-black/60 text-white p-1 rounded-lg"><Icon name="maximize-2" size={12} /></div>
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div className="pl-10 mt-2 border-t-2 border-stone-100 pt-2 flex items-center gap-2">
-                                                <Icon name="pencil" size={12} className="text-stone-400" />
-                                                <input type="text" placeholder="輸入備註 (如：考幾分、心得...)" value={task.note} onChange={e => updateNote(task.id, e.target.value)} className="w-full bg-transparent outline-none italic font-bold text-sm text-stone-600" />
+
+                                            <div className="px-4 pb-4">
+                                                <div className="border-t border-stone-100 pt-3 flex items-center gap-2">
+                                                    <Icon name="edit-3" size={12} className="text-stone-400" />
+                                                    <input 
+                                                        type="text" placeholder="稟軒備註 (如：答案選B、我選錯了...)" 
+                                                        value={task.note} onChange={e => updateNote(task.id, e.target.value)} 
+                                                        className="w-full bg-transparent outline-none italic font-bold text-sm text-stone-600 focus:text-amber-600" 
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
                                     ))}
-                                    {tasks.length === 0 && <div className="text-center py-12 border-4 border-dashed border-stone-300 rounded-3xl font-bold text-stone-400">目前棋盤空空如也，請媽媽佈局。</div>}
+                                    {tasks.length === 0 && (
+                                        <div className="md:col-span-2 text-center py-20 border-4 border-dashed border-stone-300 rounded-3xl font-bold text-stone-400 italic">棋盤尚未佈局，等候對局中。</div>
+                                    )}
                                 </div>
-
-                                {/* 裝飾元素 - 緊跟在清單下方 */}
-                                <div className="mt-8 text-center bg-white/50 py-4 rounded-3xl border border-white/80">
-                                    <div className="flex justify-center gap-4 mb-2">
-                                        <div className="w-5 h-5 rounded-full bg-stone-900 shadow-xl"></div>
-                                        <div className="w-5 h-5 rounded-full bg-white border border-stone-400 shadow-inner"></div>
-                                        <div className="w-5 h-5 rounded-full bg-stone-900 shadow-xl"></div>
+                                
+                                <div className="mt-10 text-center bg-white/50 py-6 rounded-3xl border border-white/80 shadow-sm">
+                                    <div className="flex justify-center gap-4 mb-3">
+                                        <div className="w-6 h-6 rounded-full bg-stone-900 shadow-xl"></div>
+                                        <div className="w-6 h-6 rounded-full bg-white border border-stone-400 shadow-inner"></div>
+                                        <div className="w-6 h-6 rounded-full bg-stone-900 shadow-xl"></div>
                                     </div>
-                                    <p className="text-stone-700 font-black tracking-widest text-xs md:text-sm">
+                                    <p className="text-stone-700 font-black tracking-widest text-sm px-4">
                                         每一顆落下的棋子，都是通往成功的神之一手。稟軒加油！
                                     </p>
                                 </div>
                             </div>
-                        </section>
+                        </div>
                     </main>
                 </div>
             );
