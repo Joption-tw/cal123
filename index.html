@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V11.5</title>
+    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V11.6</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
@@ -92,7 +92,7 @@
             const [user, setUser] = useState(null);
             const [activeTasks, setActiveTasks] = useState([]);
             const [historyTasks, setHistoryTasks] = useState([]);
-            const [hasTriggeredHistory, setHasTriggeredHistory] = useState(false);
+            const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
             const [historyDisplayLimit, setHistoryDisplayLimit] = useState(10);
             
             const [timeLeft, setTimeLeft] = useState({ d: 0, h: 0, m: 0, s: 0 });
@@ -117,7 +117,7 @@
 
             const targetDate = useMemo(() => new Date('2026-05-16T00:00:00'), []);
 
-            // V11.5 解析強化函數：確保 role: "user" 並支持多模態
+            // 具有指數退避重試機制的 AI 請求函數
             const callGeminiWithRetry = async (systemPrompt, userPrompt, schema = null, imageBase64 = null) => {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
                 
@@ -198,7 +198,7 @@
                     
                     const rawRes = await callGeminiWithRetry(sys, userP, schema, task.imageUrl);
                     
-                    // V11.5: 強化 JSON 提取正則
+                    // 強化 JSON 提取正則
                     const jsonMatch = rawRes.match(/\{[\s\S]*\}/);
                     if (!jsonMatch) throw new Error("JSON_PARSE_ERROR");
                     const data = JSON.parse(jsonMatch[0]);
@@ -257,7 +257,7 @@
             }, [user]);
 
             useEffect(() => {
-                if (viewMode === 'history' && !hasTriggeredHistory && user) {
+                if (viewMode === 'history' && !hasLoadedHistory && user) {
                     const qHistory = query(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), where('completed', '==', true));
                     const unsubHistory = onSnapshot(qHistory, (snap) => {
                         setHistoryTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -265,7 +265,7 @@
                     });
                     return () => unsubHistory();
                 }
-            }, [viewMode, hasTriggeredHistory, user]);
+            }, [viewMode, hasLoadedHistory, user]);
 
             const todayStr = useMemo(() => {
                 const now = new Date();
@@ -404,7 +404,7 @@
                     )}
 
                     <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
-                        <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200">VER 11.5</div>
+                        <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200">VER 11.6</div>
                         <div className="max-w-4xl mx-auto">
                             <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg ring-4 ring-amber-500/20">
                                 <Icon name="flame" size={24} /> <span>SAI ‧ 應試覺醒</span>
