@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V10.3</title>
+    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V10.5</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
@@ -14,7 +14,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
-        body { margin: 0; padding: 0; overflow-x: hidden; font-family: 'Noto Sans TC', sans-serif; background: #FDFBF7; }
+        body { margin: 0; padding: 0; overflow-x: hidden; font-family: 'Noto Sans TC', sans-serif; background: #FDFBF7; scroll-behavior: smooth; }
         .vibrant-bg { background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%); position: relative; min-height: 100vh; }
         .go-board-overlay { position: fixed; inset: 0; background-image: linear-gradient(#8b4513 0.5px, transparent 0.5px), linear-gradient(90deg, #8b4513 0.5px, transparent 0.5px); background-size: 40px 40px; opacity: 0.1; pointer-events: none; z-index: 0; }
         .divine-glow-red { box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); animation: pulse-glow-red 3s infinite; }
@@ -94,7 +94,7 @@
             const [timeLeft, setTimeLeft] = useState({ d: 0, h: 0, m: 0, s: 0 });
             const [isLoading, setIsLoading] = useState(true);
             const [isSubmitting, setIsSubmitting] = useState(false);
-            const [generatingId, setGeneratingId] = useState(null); // 目前正在生成 AI 類似題的 ID
+            const [generatingId, setGeneratingId] = useState(null); 
             const [inputMode, setInputMode] = useState("text"); 
             const [viewMode, setViewMode] = useState("active"); 
             const [aiMessage, setAiMessage] = useState(null);
@@ -109,31 +109,22 @@
             const [newCategory, setNewCategory] = useState("國文");
             const [previewList, setPreviewList] = useState([]); 
             const fileInputRef = useRef(null);
+            const taskSectionRef = useRef(null);
 
             const targetDate = useMemo(() => new Date('2026-05-16T00:00:00'), []);
 
-            // 通用 AI 生成請求函數
-            const callGemini = async (systemPrompt, userPrompt, jsonMode = false, imageBase64 = null) => {
+            const callGemini = async (systemPrompt, userPrompt, schema = null, imageBase64 = null) => {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
                 const parts = [{ text: userPrompt }];
                 if (imageBase64) {
-                    parts.push({ inlineData: { mimeType: "image/png", data: imageBase64.split(',')[1] } });
+                    const mimeType = imageBase64.match(/data:(.*?);/)?.[1] || "image/jpeg";
+                    const data = imageBase64.split(',')[1];
+                    parts.push({ inlineData: { mimeType, data } });
                 }
-                
-                const payload = {
-                    contents: [{ parts }],
-                    systemInstruction: { parts: [{ text: systemPrompt }] }
-                };
-
-                if (jsonMode) {
-                    payload.generationConfig = { responseMimeType: "application/json" };
-                }
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                const payload = { contents: [{ parts }], systemInstruction: { parts: [{ text: systemPrompt }] } };
+                if (schema) { payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema }; }
+                const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error("API 請求失敗");
                 const result = await response.json();
                 return result.candidates?.[0]?.content?.parts?.[0]?.text;
             };
@@ -141,63 +132,30 @@
             const generateAiEncouragement = async (subject, taskContent) => {
                 const sys = "你是一位熱血的圍棋導師佐為。稟軒剛完成複習。請生成一句不超過15字的熱血鼓勵語，肯定他的神之一手。";
                 const user = `科目：${subject}，任務：${taskContent || '日常複習'}。`;
-                try {
-                    return await callGemini(sys, user) || "做得好！精彩的落子！";
-                } catch (e) { return "神之一手！繼續保持這股氣勢！"; }
+                try { return await callGemini(sys, user) || "做得好！精彩的落子！"; } catch (e) { return "神之一手！繼續保持這股氣勢！"; }
             };
 
             const generateSimilarTask = async (task) => {
                 setGeneratingId(task.id);
                 try {
-                    const sys = `你是一位專業國中會考補教名師。請基於使用者提供的題目，生成一題「觀念相同但內容不同」的類似練習題。
-                    輸出必須是 JSON 格式，包含：
-                    'content' (題目文字描述), 
-                    'qType' (choice 或 open), 
-                    'answer' (正確答案)。
-                    如果是選擇題，請務必在 content 中包含 A, B, C, D 選項內容。`;
-                    
-                    const userP = `原題目科目：${task.category}。內容：${task.content}。正確答案是：${task.correctAnswer || '無'}。請生成一題類似題。`;
-                    
-                    const responseText = await callGemini(sys, userP, true, task.imageUrl);
-                    const data = JSON.parse(responseText);
-                    
-                    // 1. 新增類似題到資料庫 (日期設為今天)
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), {
-                        type: 'photo', // 這裡用文字生成的內容模擬題目
-                        questionType: data.qType,
-                        content: `【AI 類似挑戰】\n${data.content}`,
-                        date: new Date().toISOString().split('T')[0],
-                        category: task.category,
-                        imageUrl: null,
-                        correctAnswer: data.answer,
-                        note: `由題目 #${task.globalIndex} 衍生生成`,
-                        completed: false,
-                        wasIncorrect: false,
-                        status: 'active',
-                        createdAt: serverTimestamp()
-                    });
-
-                    // 2. 更新原題目的生成次數
-                    const newCount = (task.similarCount || 0) + 1;
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), {
-                        similarCount: newCount
-                    });
-
-                    setAiMessage({ text: "AI 類似題已成功佈局到「待挑戰」清單中！", status: 'correct' });
+                    const sys = "你是一位專業國中會考名師。請基於使用者提供的題目，生成一題觀念相同但內容不同的類似練習題。必須輸出 JSON 格式。";
+                    const schema = { type: "OBJECT", properties: { content: { type: "STRING" }, qType: { type: "STRING", enum: ["choice", "open"] }, answer: { type: "STRING" } }, required: ["content", "qType", "answer"] };
+                    const userP = `原題目科目：${task.category}。內容描述：${task.content}。正確答案：${task.correctAnswer || '無'}。如果是選擇題，請在 content 中包含 A, B, C, D 選項描述。`;
+                    const responseText = await callGemini(sys, userP, schema, task.imageUrl);
+                    const cleanJson = responseText.replace(/```json|```/g, "").trim();
+                    const data = JSON.parse(cleanJson);
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { type: 'photo', questionType: data.qType, content: `【AI 類似挑戰】\n${data.content}`, date: new Date().toISOString().split('T')[0], category: task.category, imageUrl: null, correctAnswer: data.answer, note: `由戰績榜 #${task.globalIndex} 延伸生成`, completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), similarCount: 0 });
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { similarCount: (task.similarCount || 0) + 1 });
+                    setAiMessage({ text: "AI 類似題已成功落子，請前往「待挑戰」迎戰！", status: 'correct' });
                     setTimeout(() => setAiMessage(null), 2000);
                 } catch (e) {
-                    console.error(e);
-                    alert("AI 生成失敗，請再試一次。");
-                } finally {
-                    setGeneratingId(null);
-                }
+                    setAiMessage({ text: "此步棋局複雜，AI 佈局失敗，請再試一次。", status: 'wrong' });
+                    setTimeout(() => setAiMessage(null), 2500);
+                } finally { setGeneratingId(null); }
             };
 
             useEffect(() => {
-                onAuthStateChanged(auth, u => {
-                    if (!u) signInAnonymously(auth);
-                    setUser(u);
-                });
+                onAuthStateChanged(auth, u => { if (!u) signInAnonymously(auth); setUser(u); });
                 const timer = setInterval(() => {
                     const diff = targetDate - new Date();
                     if (diff <= 0) setTimeLeft({ d: 0, h: 0, m: 0, s: 0 });
@@ -211,12 +169,8 @@
                 const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'));
                 return onSnapshot(q, (snapshot) => {
                     const taskList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    taskList.sort((a, b) => {
-                        if (a.date !== b.date) return a.date.localeCompare(b.date);
-                        return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
-                    });
-                    const taskListWithIndex = taskList.map((t, idx) => ({ ...t, globalIndex: idx + 1 }));
-                    setTasks(taskListWithIndex);
+                    taskList.sort((a, b) => { if (a.date !== b.date) return a.date.localeCompare(b.date); return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0); });
+                    setTasks(taskList.map((t, idx) => ({ ...t, globalIndex: idx + 1 })));
                     setIsLoading(false);
                 });
             }, [user]);
@@ -227,77 +181,54 @@
             }, [tasks]);
 
             const counts = useMemo(() => {
-                const active = tasks.filter(task => {
-                    if (task.date > todayStr) return false;
-                    if (!task.completed) return true;
-                    if (task.wasIncorrect && task.status === 'needsReview') {
-                        const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : "";
-                        return solvedDate !== todayStr;
-                    }
-                    return false;
-                }).length;
+                const active = tasks.filter(task => { if (task.date > todayStr) return false; if (!task.completed) return true; if (task.wasIncorrect && task.status === 'needsReview') { const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : ""; return solvedDate !== todayStr; } return false; }).length;
                 const future = tasks.filter(task => task.date > todayStr).length;
-                const history = tasks.filter(task => {
-                    if (!task.completed) return false;
-                    if (task.wasIncorrect && task.status === 'needsReview') {
-                        const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : "";
-                        return solvedDate === todayStr;
-                    }
-                    return true;
-                }).length;
+                const history = tasks.filter(task => { if (!task.completed) return false; if (task.wasIncorrect && task.status === 'needsReview') { const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : ""; return solvedDate === todayStr; } return true; }).length;
                 return { active, future, history };
             }, [tasks, todayStr]);
 
             const filteredTasks = useMemo(() => {
-                if (viewMode === 'active') {
-                    return tasks.filter(task => {
-                        if (task.date > todayStr) return false;
-                        if (!task.completed) return true;
-                        if (task.wasIncorrect && task.status === 'needsReview') {
-                            const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : "";
-                            return solvedDate !== todayStr;
-                        }
-                        return false;
-                    });
-                } else if (viewMode === 'future') {
-                    return tasks.filter(task => task.date > todayStr);
-                } else {
-                    return tasks.filter(task => {
-                        if (!task.completed) return false;
-                        if (task.wasIncorrect && task.status === 'needsReview') {
-                            const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : "";
-                            return solvedDate === todayStr;
-                        }
-                        return true;
-                    }).sort((a, b) => (b.completedAt?.seconds || 0) - (a.completedAt?.seconds || 0));
-                }
+                if (viewMode === 'active') return tasks.filter(task => { if (task.date > todayStr) return false; if (!task.completed) return true; if (task.wasIncorrect && task.status === 'needsReview') { const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : ""; return solvedDate !== todayStr; } return false; });
+                if (viewMode === 'future') return tasks.filter(task => task.date > todayStr);
+                return tasks.filter(task => { if (!task.completed) return false; if (task.wasIncorrect && task.status === 'needsReview') { const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : ""; return solvedDate === todayStr; } return true; }).sort((a, b) => (b.completedAt?.seconds || 0) - (a.completedAt?.seconds || 0));
             }, [tasks, viewMode, todayStr]);
 
+            // --- 核心修正點：上傳後自動滾動與狀態重置 ---
             const addTask = async (e) => {
                 e.preventDefault();
                 if (!newTask.trim() && previewList.length === 0) return;
                 setIsSubmitting(true);
                 try {
                     if (inputMode === 'photo') {
-                        await Promise.all(previewList.map(item => 
-                            addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), {
-                                type: 'photo', questionType: item.qType, content: newTask,
-                                date: newDate, category: newCategory, imageUrl: item.dataUrl,
-                                correctAnswer: item.answer, note: "", completed: false,
-                                wasIncorrect: false, status: 'active', createdAt: serverTimestamp(),
-                                similarCount: 0
-                            })
-                        ));
+                        await Promise.all(previewList.map(item => addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { type: 'photo', questionType: item.qType, content: newTask, date: newDate, category: newCategory, imageUrl: item.dataUrl, correctAnswer: item.answer, note: "", completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), similarCount: 0 })));
                         setPreviewList([]);
                     } else {
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), {
-                            type: 'text', content: newTask, date: newDate, category: newCategory,
-                            completed: false, status: 'active', createdAt: serverTimestamp(),
-                            similarCount: 0
-                        });
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { type: 'text', content: newTask, date: newDate, category: newCategory, completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), similarCount: 0 });
                     }
+                    
+                    // 重置 UI
                     setNewTask("");
-                } catch (e) { console.error(e); } finally { setIsSubmitting(false); }
+                    if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); // 手機收起鍵盤
+                    
+                    // 顯示成功提示
+                    setAiMessage({ text: "落子成功！對局已發佈。", status: 'correct' });
+                    
+                    // 自動導航：捲動到任務區域
+                    setTimeout(() => {
+                        setAiMessage(null);
+                        const targetSection = document.getElementById('battle-section');
+                        if (targetSection) {
+                            targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    }, 800);
+
+                } catch (e) {
+                    console.error(e);
+                    setAiMessage({ text: "落子失敗，請檢查網路後重試。", status: 'wrong' });
+                    setTimeout(() => setAiMessage(null), 2500);
+                } finally { 
+                    setIsSubmitting(false); 
+                }
             };
 
             const submitAnswer = async (task, inputAnswer) => {
@@ -306,19 +237,33 @@
                 if (isCorrect) {
                     const msg = await generateAiEncouragement(task.category, task.content);
                     setAiMessage({ text: msg, status: 'correct' });
-                    setTimeout(async () => {
-                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { 
-                            completed: true, status: task.wasIncorrect ? 'needsReview' : 'archived', completedAt: serverTimestamp() 
-                        });
-                        setAiMessage(null);
-                    }, 1500); 
+                    setTimeout(async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { completed: true, status: task.wasIncorrect ? 'needsReview' : 'archived', completedAt: serverTimestamp() }); setAiMessage(null); }, 1500); 
                 } else {
                     setAiMessage({ text: "此步不通，請再三思索！", status: 'wrong' });
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { 
-                        wasIncorrect: true, status: 'needsReview' 
-                    });
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { wasIncorrect: true, status: 'needsReview' });
                     setTimeout(() => setAiMessage(null), 1500);
                 }
+            };
+
+            const compressImage = (file) => {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.src = e.target.result;
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const MAX_WIDTH = 1000;
+                            let width = img.width; let height = img.height;
+                            if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                            canvas.width = width; canvas.height = height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, width, height);
+                            resolve(canvas.toDataURL('image/jpeg', 0.8));
+                        };
+                    };
+                    reader.readAsDataURL(file);
+                });
             };
 
             if (isLoading && !user) return <div className="loading-overlay"><div className="spinner"></div></div>;
@@ -327,12 +272,12 @@
                 <div className="min-h-screen relative">
                     <div className="go-board-overlay"></div>
 
-                    {/* AI 訊息浮層 */}
+                    {/* Modals */}
                     {aiMessage && (
                         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm animate-in fade-in">
                             <div className={`glass-card celebrate-pop p-10 rounded-3xl shadow-2xl max-w-sm text-center border-t-8 ${aiMessage.status === 'correct' ? 'border-green-500' : 'border-red-500'} scale-110`}>
                                 <Icon name={aiMessage.status === 'correct' ? "award" : "help-circle"} size={80} className={aiMessage.status === 'correct' ? 'text-amber-500 mx-auto mb-6' : 'text-red-500 mx-auto mb-6'} />
-                                <h3 className="text-3xl font-black mb-3 text-stone-800 tracking-tight">{aiMessage.status === 'correct' ? "中盤獲勝！" : "尚未突圍"}</h3>
+                                <h3 className="text-3xl font-black mb-3 text-stone-800 tracking-tight">{aiMessage.status === 'correct' ? "成功對應！" : "尚未突圍"}</h3>
                                 <p className="text-xl text-stone-600 font-bold italic px-2 leading-relaxed">{aiMessage.text}</p>
                             </div>
                         </div>
@@ -360,7 +305,7 @@
 
                     <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
                         <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200 uppercase">
-                            VER 10.3
+                            VER 10.5
                         </div>
                         <div className="max-w-4xl mx-auto">
                             <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg ring-4 ring-amber-500/20">
@@ -379,7 +324,7 @@
 
                     <main className="max-w-7xl mx-auto px-4 py-6 relative z-10">
                         <div className="grid lg:grid-cols-12 gap-8">
-                            {/* 媽媽策略佈局區 */}
+                            {/* 媽媽區域 */}
                             <div className="lg:col-span-4">
                                 <div className="glass-card p-6 rounded-3xl border-2 border-stone-800 shadow-2xl sticky top-4">
                                     <h2 className="font-black text-xl mb-4 flex items-center gap-2 text-stone-800">
@@ -450,7 +395,7 @@
                             </div>
 
                             {/* 稟軒實戰對局區 */}
-                            <div className="lg:col-span-8">
+                            <div className="lg:col-span-8" id="battle-section">
                                 <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-6 gap-4">
                                     <h2 className="font-black text-xl flex items-center gap-2 text-stone-800">
                                         <div className="w-5 h-5 rounded-full bg-white border-2 border-stone-800 shadow-md"></div> 實戰對局區域
@@ -478,7 +423,17 @@
                                             isGenerating={generatingId === task.id}
                                             onDelete={() => setDeleteTarget(task.id)} 
                                             onSubmit={(ans) => submitAnswer(task, ans)}
-                                            onTextDone={() => completeTextTask(task)}
+                                            onTextDone={() => {
+                                                const completeText = async () => {
+                                                    const msg = await generateAiEncouragement(task.category, task.content);
+                                                    setAiMessage({ text: msg, status: 'correct' });
+                                                    setTimeout(async () => {
+                                                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { completed: true, status: 'archived', completedAt: serverTimestamp() });
+                                                        setAiMessage(null);
+                                                    }, 1500);
+                                                };
+                                                completeText();
+                                            }}
                                             onGenerateSimilar={() => generateSimilarTask(task)}
                                             openImg={setSelectedImg}
                                             onUpdateNote={(note) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { note })}
@@ -517,11 +472,7 @@
                             <span className="bg-stone-800 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">#{task.globalIndex}</span>
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black tag-${task.category}`}>{task.category}</span>
                             {mode === 'history' && (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); onGenerateSimilar(); }}
-                                    disabled={isGenerating}
-                                    className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black shadow-sm transition-all border ${isGenerating ? 'bg-stone-200 text-stone-400' : 'bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-700 active:scale-95'}`}
-                                >
+                                <button onClick={(e) => { e.stopPropagation(); onGenerateSimilar(); }} disabled={isGenerating} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black shadow-sm transition-all border ${isGenerating ? 'bg-stone-200 text-stone-400' : 'bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-700 active:scale-95'}`}>
                                     {isGenerating ? <Icon name="loader-2" size={10} className="btn-spinner" /> : <Icon name="sparkles" size={10} />}
                                     AI 類似題 ({task.similarCount || 0})
                                 </button>
