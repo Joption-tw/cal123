@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V13.39</title>
+    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V13.40</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
@@ -155,7 +155,6 @@
             const streamRef = useRef(null);
             const [shakingItems, setShakingItems] = useState([]);
 
-            // V13.39 新增：媽媽的話語錄狀態
             const [momMessage, setMomMessage] = useState("稟軒，這一步是通往夢想的神之一手。加油！");
             const [isMessageLoading, setIsMessageLoading] = useState(false);
 
@@ -174,33 +173,18 @@
             const targetDate = useMemo(() => new Date('2026-05-16T00:00:00'), []);
             const todayStr = useMemo(() => getLocalDateString(), []);
 
-            // V13.39 新增：AI 生成語錄函式
             const fetchMomMessage = async () => {
                 if (isMessageLoading) return;
                 setIsMessageLoading(true);
                 try {
                     const systemPrompt = "你是稟軒的媽媽，也是他最強大的後盾佐為。請隨機生成一句溫馨、勵志且具有圍棋精神的話（或是成語、勵志格言）來鼓勵稟軒面對國中會考。字數控制在15-25字內，使用繁體中文。內容要充滿愛與支持。";
                     const userPrompt = "請給稟軒一句新的鼓勵。";
-                    
                     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
                     const payload = { contents: [{ parts: [{ text: userPrompt }] }], systemInstruction: { parts: [{ text: systemPrompt }] } };
                     
-                    // 指數退避重試
-                    const callModel = async (retries = 3) => {
-                        for (let i = 0; i <= retries; i++) {
-                            try {
-                                const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                                if (!response.ok) throw new Error("API ERROR");
-                                const data = await response.json();
-                                return data.candidates?.[0]?.content?.parts?.[0]?.text;
-                            } catch (e) {
-                                if (i === retries) throw e;
-                                await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
-                            }
-                        }
-                    };
-
-                    const text = await callModel();
+                    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    const data = await response.json();
+                    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
                     if (text) setMomMessage(text.trim());
                 } catch (err) {
                     setMomMessage("稟軒，無論如何媽媽都在你身邊。加油！");
@@ -209,18 +193,13 @@
                 }
             };
 
-            // 當切換頁面標籤時自動更新語錄
-            useEffect(() => {
-                fetchMomMessage();
-            }, [viewMode]);
+            useEffect(() => { fetchMomMessage(); }, [viewMode]);
 
-            // Firebase Auth
             useEffect(() => {
                 const unsubscribe = onAuthStateChanged(auth, u => { if (!u) signInAnonymously(auth); setUser(u); });
                 return () => unsubscribe();
             }, []);
 
-            // Firebase Data Fetching
             useEffect(() => {
                 if (!user) return;
                 const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'));
@@ -231,7 +210,6 @@
                 return () => unsubscribe();
             }, [user]);
 
-            // Timer Logic
             useEffect(() => {
                 const timer = setInterval(() => {
                     const diff = targetDate - new Date();
@@ -347,24 +325,6 @@
                 }, 50);
             };
 
-            const handleCleanImage = async (id, base64Str) => {
-                setCleaningImageId(id); triggerBgStatus("AI 魔術橡皮擦運轉中...", "info", 0);
-                try {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`;
-                    const data = base64Str.split('base64,')[1];
-                    const mimeType = base64Str.match(/data:(.*?);/)?.[1] || "image/jpeg";
-                    const payload = { contents: [{ parts: [{ text: "Remove handwritten annotations. Keep printed text." }, { inlineData: { mimeType, data } }] }], generationConfig: { responseModalities: ["TEXT", "IMAGE"] } };
-                    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                    const json = await res.json();
-                    const newBase64 = json.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-                    if (newBase64) {
-                        const safeDataUrl = await compressDataUrl(`data:image/jpeg;base64,${newBase64}`);
-                        setPreviewList(prev => prev.map(item => item.id === id ? { ...item, dataUrl: safeDataUrl } : item));
-                        triggerBgStatus("筆跡清除完成！", "success", 3000);
-                    }
-                } catch (err) { triggerBgStatus("清除失敗", "error", 3000); } finally { setCleaningImageId(null); }
-            };
-
             const addTask = async (e) => {
                 e.preventDefault();
                 if (inputMode === 'photo') {
@@ -373,7 +333,6 @@
                         const ids = invalidItems.map(i => i.id);
                         setShakingItems(ids);
                         setTimeout(() => setShakingItems([]), 600);
-                        triggerBgStatus("請先選擇正確答案！", "error", 2000);
                         return;
                     }
                 } else if (!newTask.trim()) { return; }
@@ -383,8 +342,6 @@
                 const itemsToUpload = [...previewList];
                 const content = newTask; const date = newDate; const category = newCategory;
                 setPreviewList([]); setNewTask("");
-                triggerBgStatus("靈力同步中...", "info", 0);
-                document.getElementById('battle-section')?.scrollIntoView({ behavior: 'smooth' });
                 try {
                     if (inputMode === 'photo') {
                         await Promise.all(itemsToUpload.map(item => addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { 
@@ -396,8 +353,7 @@
                             type: 'text', content, date, category, completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), attempts: 0 
                         });
                     }
-                    triggerBgStatus("佈陣成功！", "success", 3000);
-                } catch (e) { triggerBgStatus("連線失敗", "error", 4000); } finally { setIsSubmitting(false); }
+                } catch (e) { } finally { setIsSubmitting(false); }
             };
 
             const handleTextDone = async (task) => {
@@ -425,15 +381,6 @@
                 }
             };
 
-            const confirmDelete = async () => {
-                if (!deleteTarget) return;
-                setIsDeleting(true);
-                try {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget));
-                    triggerBgStatus("抹除成功", "success");
-                } catch (e) { triggerBgStatus("移除失敗", "error"); } finally { setIsDeleting(false); setDeleteTarget(null); }
-            };
-
             const subStyles = {
                 "國文": { base: "bg-rose-500 shadow-[0_3px_0_0_#be123c]", active: "bg-rose-700 ring-rose-800" },
                 "英文": { base: "bg-blue-500 shadow-[0_3px_0_0_#1d4ed8]", active: "bg-blue-700 ring-blue-800" },
@@ -444,11 +391,49 @@
             };
             const filterStyles = { "全部": { base: "bg-stone-500 shadow-[0_3px_0_0_#57534e]", active: "bg-stone-700 ring-stone-800" }, ...subStyles };
 
+            if (isLoading && !user) return <div className="loading-overlay"><div className="spinner"></div></div>;
+
             return (
                 <div className="min-h-screen relative pb-20 text-[#2D2D2D]">
                     <div className="go-board-overlay"></div>
 
-                    {/* V13.31 沉浸式作答視窗 */}
+                    {showWebcam && (
+                        <div className="fixed inset-0 z-[6000] bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in">
+                            <div className="w-full max-w-3xl bg-stone-900 rounded-2xl p-4 shadow-2xl border border-white/20 flex flex-col items-center">
+                                <h3 className="text-white font-black text-lg mb-4 flex items-center gap-2"><Icon name="camera" size={20} className="text-amber-500" /> 拍攝考題</h3>
+                                <div className="w-full relative rounded-lg overflow-hidden bg-black mb-4 border border-white/10" style={{ maxHeight: '60vh' }}>
+                                    <video ref={videoRef} autoPlay playsInline className="w-full h-auto max-h-full object-contain"></video>
+                                </div>
+                                <div className="flex gap-3 w-full">
+                                    <button onClick={stopWebcam} className="flex-1 py-3 bg-white/10 text-white rounded-xl font-bold active:scale-95 text-sm">取消</button>
+                                    <button onClick={capturePhoto} className="flex-[2] py-3 bg-amber-500 text-black rounded-xl font-black shadow-lg active:scale-95 flex items-center justify-center gap-2 text-sm">立即拍照</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {croppingImage && (
+                        <div className="fixed inset-0 z-[3000] cropper-modal-container flex flex-col items-center justify-center p-3 animate-in fade-in">
+                            <div className="w-full max-w-2xl h-[65vh] relative mb-4">
+                                <img ref={cropperImgRef} src={croppingImage} onLoad={startCropper} className="max-w-full hidden" />
+                            </div>
+                            <div className="w-full max-w-md bg-stone-900/90 backdrop-blur-xl p-4 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col gap-3 sm:gap-5 border border-white/20 shadow-2xl">
+                                <div className="flex justify-around text-white/90 px-1 sm:px-2">
+                                    <button onClick={() => cropperRef.current?.rotate(-90)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100 active:scale-95"><Icon name="rotate-ccw" size={20} /><span className="text-[10px] font-bold">左轉</span></button>
+                                    <button onClick={() => cropperRef.current?.rotate(90)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100 active:scale-95"><Icon name="rotate-cw" size={20} /><span className="text-[10px] font-bold">右轉</span></button>
+                                    <button onClick={() => cropperRef.current?.zoom(0.1)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100 active:scale-95"><Icon name="zoom-in" size={20} /><span className="text-[10px] font-bold">放大</span></button>
+                                    <button onClick={() => cropperRef.current?.zoom(-0.1)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100 active:scale-95"><Icon name="zoom-out" size={20} /><span className="text-[10px] font-bold">縮小</span></button>
+                                </div>
+                                <div className="flex gap-2 sm:gap-3">
+                                    <button onClick={() => { setCroppingImage(null); if(cropperRef.current) cropperRef.current.destroy(); }} className="flex-1 py-2.5 sm:py-4 bg-white/10 text-white rounded-xl sm:rounded-2xl font-bold active:scale-95 text-xs sm:text-base">取消</button>
+                                    <button disabled={isProcessingCrop} onClick={finalizeCrop} className="flex-2 flex-[2] py-2.5 sm:py-4 bg-amber-500 text-black rounded-xl font-black shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-base">
+                                        {isProcessingCrop ? <Icon name="loader-2" size={16} className="btn-spinner" /> : null}確認擷取
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {activeExamTask && (
                         <div className="fixed inset-0 z-[6000] bg-black flex flex-col animate-in slide-in-from-bottom duration-300">
                             <div className="h-[83.33%] w-full relative overflow-y-auto custom-scroll bg-stone-900 flex items-center justify-center cursor-zoom-out" onClick={() => setActiveExamTask(null)}>
@@ -474,7 +459,7 @@
                     )}
 
                     <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-5 sm:py-7 px-4 text-center shadow-md relative z-10 border-b-4 border-amber-500">
-                        <div className="absolute top-4 right-4 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[8px] sm:text-[10px] font-black tracking-widest text-amber-200 uppercase">VER 13.39</div>
+                        <div className="absolute top-4 right-4 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[8px] sm:text-[10px] font-black tracking-widest text-amber-200 uppercase">VER 13.40</div>
                         <div className="max-w-4xl mx-auto flex flex-col items-center">
                             <div className="inline-flex items-center gap-2 px-4 sm:px-6 py-1.5 sm:py-2 rounded-full bg-amber-500 text-black font-black text-sm sm:text-lg mb-4 sm:mb-6 shadow-lg ring-4 ring-amber-500/20">
                                 <Icon name="flame" size={20} className="sm:w-6 sm:h-6" /> <span>SAI ‧ 應試覺醒</span>
@@ -493,93 +478,79 @@
 
                     <main className="max-w-7xl mx-auto px-2 sm:px-6 py-4 relative z-10">
                         <div className="grid lg:grid-cols-12 gap-4 sm:gap-12">
-                            {/* 左側操作區 */}
-                            <div className="lg:col-span-4 space-y-4 sm:space-y-6">
-                                
-                                {/* V13.39 新增：媽媽的話 AI 語錄框 */}
+                            {/* 左側操作區 - V13.40：壓扁調整 */}
+                            <div className="lg:col-span-4 space-y-3 sm:space-y-4">
                                 <div 
-                                    className="mom-quote-card p-4 sm:p-5 rounded-2xl shadow-lg border-2 border-rose-100 cursor-pointer overflow-hidden relative group"
+                                    className="mom-quote-card p-3 sm:p-4 rounded-xl shadow-md border border-rose-100 cursor-pointer overflow-hidden relative group"
                                     onClick={fetchMomMessage}
                                 >
-                                    <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                                        <Icon name="heart" size={80} className="text-rose-500" />
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <div className="bg-rose-500 text-white p-1 rounded-lg"><Icon name="heart" size={12} /></div>
+                                        <span className="text-xs font-black text-rose-600 tracking-widest uppercase">媽媽的話</span>
                                     </div>
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="bg-rose-500 text-white p-1 rounded-lg">
-                                            <Icon name="heart" size={14} />
-                                        </div>
-                                        <span className="text-sm font-black text-rose-600 tracking-widest uppercase">媽媽的話</span>
-                                        {isMessageLoading && <Icon name="loader-2" size={14} className="text-rose-400 btn-spinner ml-auto" />}
-                                    </div>
-                                    <p className={`text-sm sm:text-base font-bold text-stone-700 leading-relaxed italic italic-style fade-message key={momMessage}`}>
-                                        「{momMessage}」
-                                    </p>
-                                    <div className="mt-2 text-[10px] font-bold text-rose-300 text-right uppercase tracking-tighter opacity-0 group-hover:opacity-100 transition-opacity">
-                                        點擊框框獲取新的靈力 ‧ CLICK TO REFRESH
-                                    </div>
+                                    <p className="text-sm font-bold text-stone-700 leading-snug italic fade-message">「{momMessage}」</p>
                                 </div>
 
-                                <div className="glass-card p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-stone-800 shadow-md lg:sticky lg:top-8">
-                                    <h2 className="font-black text-base sm:text-xl mb-4 flex items-center gap-2 text-stone-800"><div className="w-4 h-4 rounded-full bg-black"></div> 佈局策略 (媽媽)</h2>
-                                    <div className="flex bg-stone-100 rounded-xl p-1 mb-5 shadow-inner">
-                                        <button onClick={() => setInputMode("photo")} className={`flex-1 py-2 text-xs sm:text-sm font-black rounded-lg transition-all ${inputMode === "photo" ? 'bg-white text-indigo-700 shadow-sm' : 'text-stone-400'}`}>拍照佈陣</button>
-                                        <button onClick={() => setInputMode("text")} className={`flex-1 py-2 text-xs sm:text-sm font-black rounded-lg transition-all ${inputMode === "text" ? 'bg-white text-indigo-700 shadow-sm' : 'text-stone-400'}`}>文字任務</button>
+                                <div className="glass-card p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-stone-800 shadow-sm lg:sticky lg:top-4">
+                                    <h2 className="font-black text-sm sm:text-base mb-2.5 flex items-center gap-1.5 text-stone-800"><div className="w-3 h-3 rounded-full bg-black"></div> 佈局策略 (媽媽)</h2>
+                                    <div className="flex bg-stone-100 rounded-lg p-0.5 mb-3 shadow-inner">
+                                        <button onClick={() => setInputMode("photo")} className={`flex-1 py-1 text-[11px] font-black rounded-md transition-all ${inputMode === "photo" ? 'bg-white text-indigo-700 shadow-sm' : 'text-stone-400'}`}>拍照佈陣</button>
+                                        <button onClick={() => setInputMode("text")} className={`flex-1 py-1 text-[11px] font-black rounded-md transition-all ${inputMode === "text" ? 'bg-white text-indigo-700 shadow-sm' : 'text-stone-400'}`}>文字任務</button>
                                     </div>
-                                    <form onSubmit={addTask} className="space-y-4">
-                                        <div className="flex flex-wrap gap-2 mb-2">
+                                    <form onSubmit={addTask} className="space-y-2.5">
+                                        <div className="flex flex-wrap gap-1 mb-1">
                                             {SUBJECTS.map(sub => {
                                                 const isSelected = newCategory === sub;
                                                 const styles = subStyles[sub];
-                                                return (<button key={sub} type="button" onClick={() => setNewCategory(sub)} className={`flex-auto min-w-[28%] px-2 py-1.5 rounded-lg text-[11px] font-black text-white transition-all duration-75 text-center ${isSelected ? `${styles.active.replace('ring-', 'bg-')} translate-y-[3px] shadow-none ring-2 ring-offset-1` : `${styles.base} opacity-60 active:translate-y-[3px]`}`}>{sub}</button>);
+                                                return (<button key={sub} type="button" onClick={() => setNewCategory(sub)} className={`flex-auto min-w-[28%] px-1.5 py-1 rounded-lg text-[10px] font-black text-white transition-all duration-75 text-center ${isSelected ? `${styles.active.replace('ring-', 'bg-')} translate-y-[2px] shadow-none ring-1 ring-offset-1` : `${styles.base} opacity-60 active:translate-y-[2px]`}`}>{sub}</button>);
                                             })}
                                         </div>
-                                        <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full p-2.5 rounded-lg border border-stone-200 bg-white font-bold text-sm shadow-inner outline-none" />
+                                        <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full p-1.5 rounded-lg border border-stone-200 bg-white font-bold text-xs shadow-inner outline-none" />
                                         
                                         {inputMode === 'photo' ? (
-                                            <div className="space-y-3">
-                                                <div className="flex gap-3">
-                                                    <div onClick={() => !isPreCompressing && fileInputRef.current.click()} className={`flex-1 p-4 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center justify-center cursor-pointer bg-indigo-50/50 min-h-[80px] ${isPreCompressing ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white'}`}>
-                                                        {isPreCompressing ? (<><Icon name="loader-2" size={28} className="text-indigo-500 mb-1 btn-spinner" /></>) : (<><Icon name="image" size={28} className="text-indigo-500 mb-1" /></>)}
-                                                        <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest text-center">選圖</span>
+                                            <div className="space-y-2">
+                                                <div className="flex gap-2">
+                                                    <div onClick={() => !isPreCompressing && fileInputRef.current.click()} className={`flex-1 p-2 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center justify-center cursor-pointer bg-indigo-50/50 min-h-[60px] ${isPreCompressing ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white'}`}>
+                                                        <Icon name={isPreCompressing ? "loader-2" : "image"} size={20} className={`text-indigo-500 mb-0.5 ${isPreCompressing ? 'btn-spinner' : ''}`} />
+                                                        <span className="text-[8px] font-black uppercase text-indigo-600 tracking-widest text-center">選圖</span>
                                                         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                                                     </div>
-                                                    <div onClick={() => !isPreCompressing && startWebcam()} className={`flex-1 p-4 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center justify-center cursor-pointer bg-indigo-50/50 min-h-[80px] ${isPreCompressing ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white'}`}><Icon name="camera" size={28} className="text-indigo-500 mb-1" /><span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest text-center">拍攝</span></div>
+                                                    <div onClick={() => !isPreCompressing && startWebcam()} className={`flex-1 p-2 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center justify-center cursor-pointer bg-indigo-50/50 min-h-[60px] ${isPreCompressing ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white'}`}><Icon name="camera" size={20} className="text-indigo-500 mb-0.5" /><span className="text-[8px] font-black uppercase text-indigo-600 tracking-widest text-center">拍攝</span></div>
                                                 </div>
-                                                <div className="space-y-3 max-h-64 overflow-y-auto pr-1 custom-scroll">
+                                                <div className="space-y-2 max-h-40 overflow-y-auto pr-1 custom-scroll">
                                                     {previewList.map(item => (
-                                                        <div key={item.id} className={`p-3 bg-white/70 rounded-xl border border-stone-200 relative flex flex-col gap-2 shadow-sm transition-all ${shakingItems.includes(item.id) ? 'animate-shake' : ''}`}>
-                                                            <button type="button" onClick={() => setPreviewList(prev => prev.filter(i => i.id !== item.id))} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full p-1 shadow-md z-20"><Icon name="x" size={12} /></button>
-                                                            <div className="flex gap-3 items-start">
-                                                                <div className="w-16 h-16 flex-shrink-0 rounded-md overflow-hidden bg-white">
-                                                                    <img src={item.dataUrl} className="w-full h-full object-cover object-top" />
-                                                                </div>
-                                                                <div className="flex-1 flex flex-col gap-2">
-                                                                    <button type="button" onClick={() => handleCleanImage(item.id, item.dataUrl)} disabled={cleaningImageId === item.id} className="w-full bg-indigo-50 text-indigo-600 border border-indigo-200 py-1.5 rounded text-[10px] font-black shadow-sm flex items-center justify-center gap-1 active:scale-95 transition-all">{cleaningImageId === item.id ? <Icon name="loader-2" size={12} className="btn-spinner" /> : <Icon name="wand-2" size={12} />}去筆跡</button>
-                                                                    <div className="flex gap-2">
-                                                                        <button type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: 'choice'} : i))} className={`flex-1 py-1 text-[10px] font-black rounded border ${item.qType === 'choice' ? 'bg-stone-800 text-white' : 'bg-white text-stone-500'}`}>選擇題</button>
-                                                                        <button type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: 'open'} : i))} className={`flex-1 py-1 text-[10px] font-black rounded border ${item.qType === 'open' ? 'bg-stone-800 text-white' : 'bg-white text-stone-500'}`}>填空題</button>
+                                                        <div key={item.id} className={`p-1.5 bg-white/70 rounded-lg border border-stone-200 relative flex flex-col gap-1 shadow-sm transition-all ${shakingItems.includes(item.id) ? 'animate-shake' : ''}`}>
+                                                            <button type="button" onClick={() => setPreviewList(prev => prev.filter(i => i.id !== item.id))} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow-md z-20"><Icon name="x" size={8} /></button>
+                                                            <div className="flex gap-2 items-start">
+                                                                <div className="w-12 h-12 flex-shrink-0 rounded-md overflow-hidden bg-white"><img src={item.dataUrl} className="w-full h-full object-cover" /></div>
+                                                                <div className="flex-1 flex flex-col gap-1">
+                                                                    <button type="button" onClick={() => handleCleanImage(item.id, item.dataUrl)} disabled={cleaningImageId === item.id} className="w-full bg-indigo-50 text-indigo-600 border border-indigo-200 py-0.5 rounded text-[8px] font-black shadow-sm flex items-center justify-center gap-1">{cleaningImageId === item.id ? <Icon name="loader-2" size={8} className="btn-spinner" /> : <Icon name="wand-2" size={8} />}去筆跡</button>
+                                                                    <div className="flex gap-1">
+                                                                        <button type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: 'choice'} : i))} className={`flex-1 py-0.5 text-[8px] font-black rounded border ${item.qType === 'choice' ? 'bg-stone-800 text-white' : 'bg-white text-stone-500'}`}>選擇</button>
+                                                                        <button type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: 'open'} : i))} className={`flex-1 py-0.5 text-[8px] font-black rounded border ${item.qType === 'open' ? 'bg-stone-800 text-white' : 'bg-white text-stone-500'}`}>填空</button>
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                             {item.qType === 'choice' ? (
-                                                                <div className="flex justify-between gap-1.5 mt-1">
+                                                                <div className="flex justify-between gap-1">
                                                                     {["A", "B", "C", "D"].map(c => {
                                                                         const isSelected = item.answer === c;
-                                                                        const colors = { "A": "bg-rose-500 shadow-[0_3px_0_0_#be123c]", "B": "bg-blue-500 shadow-[0_3px_0_0_#1d4ed8]", "C": "bg-emerald-500 shadow-[0_3px_0_0_#047857]", "D": "bg-amber-500 shadow-[0_3px_0_0_#b45309]" }[c];
-                                                                        return (<button key={c} type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: c} : i))} className={`flex-1 py-1.5 rounded-lg text-xs font-black text-white transition-all duration-75 text-center ${isSelected ? `ring-2 ring-offset-1 translate-y-[3px] shadow-none` : `opacity-30` } ${colors}`} style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.4)' }}>{c}</button>);
+                                                                        const colors = { "A": "bg-rose-500 shadow-[0_2px_0_0_#be123c]", "B": "bg-blue-500 shadow-[0_2px_0_0_#1d4ed8]", "C": "bg-emerald-500 shadow-[0_2px_0_0_#047857]", "D": "bg-amber-500 shadow-[0_3px_0_0_#b45309]" }[c];
+                                                                        return (<button key={c} type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: c} : i))} className={`flex-1 py-1 rounded-lg text-[10px] font-black text-white transition-all duration-75 text-center ${isSelected ? `ring-1 ring-offset-1 translate-y-[2px] shadow-none` : `opacity-30` } ${colors}`}>{c}</button>);
                                                                     })}
                                                                 </div>
-                                                            ) : (<input type="text" value={item.answer || ''} onChange={e => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: e.target.value} : i))} className={`w-full p-2 border rounded text-xs font-bold shadow-inner outline-none ${!item.answer && shakingItems.includes(item.id) ? 'border-red-500 bg-red-50' : 'border-stone-200'}`} placeholder="正確解答..." />)}
+                                                            ) : (<input type="text" value={item.answer || ''} onChange={e => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: e.target.value} : i))} className={`w-full p-1 border rounded text-[9px] font-bold shadow-inner outline-none ${!item.answer && shakingItems.includes(item.id) ? 'border-red-500 bg-red-50' : 'border-stone-200'}`} placeholder="輸入解答..." />)}
                                                         </div>
                                                     ))}
                                                 </div>
                                             </div>
-                                        ) : (<textarea placeholder="例如：完成國文複習講義第一單元..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="3" className="w-full p-3 rounded-xl border border-stone-200 bg-white font-bold text-sm outline-none text-black shadow-inner resize-none" />)}
-                                        <button type="submit" disabled={isSubmitting || (inputMode === 'photo' ? previewList.length === 0 : !newTask.trim())} className={`w-full py-3.5 rounded-xl font-black text-base shadow-sm transition-all flex items-center justify-center gap-2 bg-stone-900 text-white hover:bg-black active:scale-95 disabled:opacity-50`}>確認佈局落子</button>
+                                        ) : (<textarea placeholder="例如：完成國文複習講義..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="2" className="w-full p-2 rounded-lg border border-stone-200 bg-white font-bold text-xs outline-none text-black shadow-inner resize-none" />)}
+                                        <button type="submit" disabled={isSubmitting || (inputMode === 'photo' ? previewList.length === 0 : !newTask.trim())} className={`w-full py-2.5 rounded-lg font-black text-sm shadow-sm transition-all flex items-center justify-center gap-1.5 bg-stone-900 text-white hover:bg-black active:scale-95 disabled:opacity-50`}>確認佈局</button>
                                     </form>
                                 </div>
                             </div>
 
+                            {/* 右側列表區 */}
                             <div className="lg:col-span-8 mt-2 sm:mt-0" id="battle-section">
                                 <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 gap-3">
                                     <h2 className="font-black text-lg sm:text-xl flex items-center gap-2 text-stone-800"><div className="w-4 h-4 rounded-full bg-white border border-stone-800 shadow-md"></div> 實戰對局區域</h2>
@@ -617,7 +588,7 @@
                                                                 <span className="text-[10px] font-bold text-stone-400 flex-shrink-0 tracking-widest">{task.date}</span>
                                                                 <div className={`text-sm sm:text-base font-bold text-stone-800 truncate ${task.completed ? 'line-through text-stone-400 opacity-60' : ''}`} title={displayContent}>{displayContent}</div>
                                                             </div>
-                                                            <button onClick={() => setDeleteTarget(task.id)} className="opacity-100 group-hover:opacity-100 text-stone-300 hover:text-red-500 p-1.5 transition-all flex-shrink-0"><Icon name="trash-2" size={16} /></button>
+                                                            <button onClick={() => setDeleteTarget(task.id)} className="opacity-100 sm:opacity-0 group-hover:opacity-100 text-stone-300 hover:text-red-500 p-1.5 transition-all flex-shrink-0"><Icon name="trash-2" size={16} /></button>
                                                         </div>
                                                     );
                                                 })}
@@ -633,59 +604,47 @@
                                             </div>
                                             <div className="flex flex-col divide-y divide-amber-50">
                                                 {photoTasks.map(task => (
-                                                    <PhotoTaskRow key={task.id} task={task} mode={viewMode} onDelete={() => setDeleteTarget(task.id)} onSubmit={ans => submitAnswer(task, ans)} openImg={setActiveExamTask} />
+                                                    <div key={task.id} className="flex items-center gap-3 py-2 px-3 sm:px-4 hover:bg-amber-50/40 transition-colors group">
+                                                        <div className="bg-stone-800 text-white text-[9px] font-black w-6 h-6 flex items-center justify-center rounded flex-shrink-0 shadow-sm">#{task.globalIndex}</div>
+                                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                                            <select value={task.category || '其他'} onChange={(e) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { category: e.target.value })} className={`select-clean cursor-pointer outline-none px-2 py-0.5 rounded text-[10px] font-black flex-shrink-0 text-center tag-${task.category || '其他'}`}>
+                                                                {SUBJECTS.map(s => <option key={s} value={s} className="bg-white text-stone-800">{s}</option>)}
+                                                            </select>
+                                                            <span className="text-[10px] font-bold text-stone-400 tracking-tighter uppercase whitespace-nowrap">{task.date}</span>
+                                                        </div>
+                                                        {task.imageUrl && (
+                                                            <div className="w-14 h-9 sm:w-18 sm:h-12 flex-shrink-0 cursor-zoom-in relative rounded border border-stone-200 overflow-hidden bg-white" onClick={() => setActiveExamTask(task)}>
+                                                                <img src={task.imageUrl} className="w-full h-full object-cover object-top" />
+                                                            </div>
+                                                        )}
+                                                        <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+                                                            {viewMode === 'active' ? (
+                                                                <div className="flex gap-1.5">
+                                                                    {["A", "B", "C", "D"].map(c => {
+                                                                        const colors = { "A": "bg-rose-500 shadow-[0_2px_0_0_#be123c]", "B": "bg-blue-500 shadow-[0_2px_0_0_#1d4ed8]", "C": "bg-emerald-500 shadow-[0_2px_0_0_#047857]", "D": "bg-amber-500 shadow-[0_3px_0_0_#b45309]" }[c];
+                                                                        return (<button key={c} onClick={() => submitAnswer(task, c)} className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg font-black text-sm text-white transition-all active:translate-y-[2px] active:shadow-none hover:brightness-110 ${colors}`} style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.4)' }}>{c}</button>);
+                                                                    })}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border flex items-center gap-1 ${task.attempts === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}><Icon name={task.attempts === 1 ? "check-circle-2" : "target"} size={10} /> {task.attempts === 1 ? '一擊' : `${task.attempts}次`}</span>
+                                                                    <div className={`px-2.5 py-1 rounded bg-stone-100 border border-stone-200 text-sm font-black text-stone-800`}>{task.correctAnswer}</div>
+                                                                </div>
+                                                            )}
+                                                            <div className="flex items-center gap-1 pl-1.5 border-l border-stone-100">
+                                                                <button onClick={() => setDeleteTarget(task.id)} className="text-stone-300 hover:text-red-500 p-1"><Icon name="trash-2" size={18} /></button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
                                     {listToDisplay.length === 0 && <div className="text-center py-16 border-2 border-dashed border-stone-300 rounded-2xl font-black text-stone-400 italic px-6 text-sm">清單清空中</div>}
                                 </div>
-                                {viewMode === 'history' && counts.history > historyDisplayLimit && (
-                                    <div className="mt-6 text-center animate-in slide-in-from-bottom"><button onClick={() => setHistoryDisplayLimit(prev => prev + 20)} className="bg-white border border-stone-300 text-stone-700 px-6 py-2.5 rounded-xl font-black text-sm shadow-sm hover:bg-stone-50 active:scale-95 transition-all">展示更多戰績</button></div>
-                                )}
                             </div>
                         </div>
                     </main>
-                </div>
-            );
-        };
-
-        const PhotoTaskRow = ({ task, onDelete, onSubmit, openImg, mode }) => {
-            const isReview = task.wasIncorrect && task.status === 'needsReview' && mode === 'active';
-            const attemptCount = task.attempts || 1;
-            return (
-                <div className={`flex items-center gap-3 py-2 px-3 sm:px-4 hover:bg-amber-50/40 transition-colors group ${isReview ? 'bg-amber-100 animate-pulse' : ''}`}>
-                    <div className="bg-stone-800 text-white text-[9px] font-black w-6 h-6 flex items-center justify-center rounded flex-shrink-0 shadow-sm">#{task.globalIndex}</div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                        <select value={task.category || '其他'} onChange={(e) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { category: e.target.value })} className={`select-clean cursor-pointer outline-none px-2 py-0.5 rounded text-[10px] font-black flex-shrink-0 text-center tag-${task.category || '其他'}`}>
-                            {SUBJECTS.map(s => <option key={s} value={s} className="bg-white text-stone-800">{s}</option>)}
-                        </select>
-                        <span className="text-[10px] font-bold text-stone-400 tracking-tighter uppercase whitespace-nowrap">{task.date}</span>
-                    </div>
-                    {task.imageUrl && (
-                        <div className="w-14 h-9 sm:w-18 sm:h-12 flex-shrink-0 cursor-zoom-in relative rounded border border-stone-200 overflow-hidden bg-white" onClick={() => openImg(task)}>
-                            <img src={task.imageUrl} className="w-full h-full object-cover object-top" />
-                            <div className="absolute inset-0 bg-black/10 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none"><Icon name="maximize-2" size={14} className="text-white" /></div>
-                        </div>
-                    )}
-                    <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
-                        {mode === 'active' ? (
-                            <div className="flex gap-1.5">
-                                {["A", "B", "C", "D"].map(c => {
-                                    const colors = { "A": "bg-rose-500 shadow-[0_2px_0_0_#be123c]", "B": "bg-blue-500 shadow-[0_2px_0_0_#1d4ed8]", "C": "bg-emerald-500 shadow-[0_2px_0_0_#047857]", "D": "bg-amber-500 shadow-[0_3px_0_0_#b45309]" }[c];
-                                    return (<button key={c} onClick={() => onSubmit(c)} className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg font-black text-sm text-white transition-all active:translate-y-[2px] active:shadow-none hover:brightness-110 ${colors}`} style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.4)' }}>{c}</button>);
-                                })}
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border flex items-center gap-1 ${attemptCount === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}><Icon name={attemptCount === 1 ? "check-circle-2" : "target"} size={10} /> {attemptCount === 1 ? '一擊' : `${attemptCount}次`}</span>
-                                <div className={`px-2.5 py-1 rounded bg-stone-100 border border-stone-200 text-sm font-black text-stone-800`}>{task.correctAnswer}</div>
-                            </div>
-                        )}
-                        <div className="flex items-center gap-1 pl-1.5 border-l border-stone-100">
-                            <button onClick={() => onDelete} className="text-stone-300 hover:text-red-500 p-1"><Icon name="trash-2" size={18} /></button>
-                        </div>
-                    </div>
                 </div>
             );
         };
