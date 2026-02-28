@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V13.11</title>
+    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V13.23</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
@@ -48,46 +48,46 @@
         .formal-exam-container {
             background: #ffffff;
             border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
+            border-radius: 6px;
+            padding: 8px;
+            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+            width: 100%;
         }
         @media (min-width: 640px) {
-            .formal-exam-container { padding: 20px; }
+            .formal-exam-container { padding: 14px; }
         }
         
         .exam-question-text {
             font-family: 'Noto Serif TC', serif;
             font-weight: 500;
-            font-size: 1.05rem;
-            line-height: 1.8;
+            font-size: 0.9rem;
+            line-height: 1.4;
             color: #111827;
             letter-spacing: 0.01em;
             white-space: pre-line;
+            word-break: break-word;
         }
         @media (min-width: 640px) {
-            .exam-question-text { font-size: 1.1rem; line-height: 2.0; }
+            .exam-question-text { font-size: 1.05rem; line-height: 1.5; }
         }
 
         .ai-label-subtle {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             color: #4338ca;
-            font-size: 0.75rem;
+            font-size: 0.65rem;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.12em;
-            margin-bottom: 10px;
+            letter-spacing: 0.1em;
+            margin-bottom: 6px;
             opacity: 0.9;
         }
 
         .ai-label-subtle::before {
-            content: ""; width: 6px; height: 6px; background: #4338ca; border-radius: 50%;
+            content: ""; width: 5px; height: 5px; background: #4338ca; border-radius: 50%;
         }
 
-        /* 裁剪 Modal 樣式 */
         .cropper-modal-container {
             background-color: rgba(0, 0, 0, 0.92);
         }
@@ -165,12 +165,12 @@
 
         const TimeUnit = ({ label, value }) => (
             <div className="flex flex-col items-center">
-                <div className="bg-stone-800 rounded-xl sm:rounded-2xl w-full py-2 sm:py-3 border-2 border-amber-500 shadow-xl flex items-center justify-center">
-                    <span className="text-2xl sm:text-3xl md:text-4xl font-black tabular-nums text-amber-400">
+                <div className="bg-stone-800 rounded-lg sm:rounded-2xl w-full py-1.5 sm:py-3 border-2 border-amber-500 shadow-xl flex items-center justify-center">
+                    <span className="text-xl sm:text-3xl md:text-4xl font-black tabular-nums text-amber-400 leading-none">
                         {String(value).padStart(2, '0')}
                     </span>
                 </div>
-                <span className="text-[10px] sm:text-xs font-black text-stone-400 mt-1 sm:mt-1.5 uppercase tracking-tighter">{label}</span>
+                <span className="text-[9px] sm:text-xs font-black text-stone-400 mt-0.5 sm:mt-1.5 uppercase tracking-tighter">{label}</span>
             </div>
         );
 
@@ -180,7 +180,7 @@
             const [isLoading, setIsLoading] = useState(true);
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [bgUploadStatus, setBgUploadStatus] = useState({ show: false, message: "", type: "info" });
-            const [historyDisplayLimit, setHistoryDisplayLimit] = useState(10);
+            const [historyDisplayLimit, setHistoryDisplayLimit] = useState(15); 
             
             const [timeLeft, setTimeLeft] = useState({ d: 0, h: 0, m: 0, s: 0 });
             const [generatingStatus, setGeneratingStatus] = useState(null); 
@@ -201,6 +201,10 @@
             const [isProcessingCrop, setIsProcessingCrop] = useState(false); 
             const cropperRef = useRef(null);
             const cropperImgRef = useRef(null);
+
+            const [showWebcam, setShowWebcam] = useState(false);
+            const videoRef = useRef(null);
+            const streamRef = useRef(null);
 
             const [newTask, setNewTask] = useState("");
             const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
@@ -257,7 +261,6 @@
                 } catch (e) { return null; }
             };
 
-            // AI 智慧衍生題生成
             const generateSimilarTask = async (task) => {
                 setGeneratingId(task.id);
                 setGeneratingStatus('gemini');
@@ -302,7 +305,6 @@
                     const img = new Image();
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        // 畫質解封：最高解析度提高至 1600px
                         const MAX_WIDTH = 1600;
                         let width = img.width, height = img.height;
                         if (width > MAX_WIDTH) { height = Math.round((height * MAX_WIDTH) / width); width = MAX_WIDTH; }
@@ -310,10 +312,9 @@
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, width, height);
                         
-                        let quality = 0.95; // 起始最高畫質
+                        let quality = 0.95; 
                         let newDataUrl = canvas.toDataURL('image/jpeg', quality);
                         
-                        // 動態降階：若超過 ~500KB (Base64字串約 700,000)，才往下微調
                         while (newDataUrl.length > 700000 && quality > 0.4) {
                             quality -= 0.1;
                             newDataUrl = canvas.toDataURL('image/jpeg', quality);
@@ -457,6 +458,65 @@
                 } catch (error) { alert("圖片載入失敗，請重試"); } finally { setIsPreCompressing(false); e.target.value = ""; }
             };
 
+            const startWebcam = async () => {
+                setIsPreCompressing(true);
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    streamRef.current = stream;
+                    setShowWebcam(true);
+                    setTimeout(() => {
+                        if (videoRef.current) {
+                            videoRef.current.srcObject = stream;
+                        }
+                    }, 100);
+                } catch (err) {
+                    console.error("Webcam error:", err);
+                    alert("無法存取相機，請確認瀏覽器權限設定。");
+                } finally {
+                    setIsPreCompressing(false);
+                }
+            };
+
+            const stopWebcam = () => {
+                if (streamRef.current) {
+                    streamRef.current.getTracks().forEach(track => track.stop());
+                    streamRef.current = null;
+                }
+                setShowWebcam(false);
+            };
+
+            const capturePhoto = () => {
+                if (!videoRef.current) return;
+                const video = videoRef.current;
+                const canvas = document.createElement('canvas');
+                
+                const MAX_WIDTH = 1600;
+                let width = video.videoWidth;
+                let height = video.videoHeight;
+                
+                if (width > MAX_WIDTH) {
+                    height = Math.round((height * MAX_WIDTH) / width);
+                    width = MAX_WIDTH;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, width, height);
+                
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                stopWebcam();
+                setCroppingImage(dataUrl); 
+            };
+
+            useEffect(() => {
+                return () => {
+                    if (streamRef.current) {
+                        streamRef.current.getTracks().forEach(track => track.stop());
+                    }
+                };
+            }, []);
+
             const startCropper = () => {
                 if (cropperRef.current) cropperRef.current.destroy();
                 cropperRef.current = new Cropper(cropperImgRef.current, {
@@ -561,6 +621,19 @@
                 } catch (e) { triggerBgStatus("移除失敗", "error"); } finally { setIsDeleting(false); setDeleteTarget(null); }
             };
 
+            const textTasks = listToDisplay.filter(t => t.type === 'text');
+            const photoTasks = listToDisplay.filter(t => t.type === 'photo');
+
+            // 佈局按鈕色彩樣式
+            const subStyles = {
+                "國文": { base: "bg-rose-500 shadow-[0_3px_0_0_#be123c]", active: "bg-rose-700 ring-rose-800" },
+                "英文": { base: "bg-blue-500 shadow-[0_3px_0_0_#1d4ed8]", active: "bg-blue-700 ring-blue-800" },
+                "數學": { base: "bg-amber-500 shadow-[0_3px_0_0_#b45309]", active: "bg-amber-700 ring-amber-800" },
+                "自然": { base: "bg-emerald-500 shadow-[0_3px_0_0_#047857]", active: "bg-emerald-700 ring-emerald-800" },
+                "社會": { base: "bg-purple-500 shadow-[0_3px_0_0_#6d28d9]", active: "bg-purple-700 ring-purple-800" },
+                "其他": { base: "bg-teal-500 shadow-[0_3px_0_0_#0f766e]", active: "bg-teal-700 ring-teal-800" }
+            };
+
             if (isLoading && !user) return <div className="loading-overlay"><div className="spinner"></div></div>;
 
             return (
@@ -574,22 +647,42 @@
                         <span>{bgUploadStatus.message}</span>
                     </div>
 
+                    {showWebcam && (
+                        <div className="fixed inset-0 z-[6000] bg-black/95 flex flex-col items-center justify-center p-4 animate-in fade-in">
+                            <div className="w-full max-w-3xl bg-stone-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl border border-white/20 flex flex-col items-center">
+                                <h3 className="text-white font-black text-lg mb-4 flex items-center gap-2">
+                                    <Icon name="camera" size={20} className="text-amber-500" /> 拍攝考題
+                                </h3>
+                                <div className="w-full relative rounded-lg sm:rounded-xl overflow-hidden bg-black mb-4 sm:mb-6 flex items-center justify-center border border-white/10" style={{ maxHeight: '60vh' }}>
+                                    <video ref={videoRef} autoPlay playsInline className="w-full h-auto max-h-full object-contain"></video>
+                                    <div className="absolute inset-0 border-[2px] border-white/30 border-dashed pointer-events-none m-8 rounded-lg"></div>
+                                </div>
+                                <div className="flex gap-3 sm:gap-4 w-full">
+                                    <button onClick={stopWebcam} className="flex-1 py-3 sm:py-4 bg-white/10 text-white rounded-xl font-bold active:scale-95 text-sm sm:text-base">取消</button>
+                                    <button onClick={capturePhoto} className="flex-[2] py-3 sm:py-4 bg-amber-500 text-black rounded-xl font-black shadow-lg active:scale-95 flex items-center justify-center gap-2 text-sm sm:text-base">
+                                        <Icon name="aperture" size={20} /> 立即拍照
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {croppingImage && (
-                        <div className="fixed inset-0 z-[3000] cropper-modal-container flex flex-col items-center justify-center p-4 animate-in fade-in">
-                            <div className="w-full max-w-2xl h-[65vh] relative mb-6">
+                        <div className="fixed inset-0 z-[3000] cropper-modal-container flex flex-col items-center justify-center p-3 sm:p-4 animate-in fade-in">
+                            <div className="w-full max-w-2xl h-[65vh] relative mb-4 sm:mb-6">
                                 <img ref={cropperImgRef} src={croppingImage} onLoad={startCropper} className="max-w-full hidden" />
                             </div>
-                            <div className="w-full max-w-md bg-stone-900/90 backdrop-blur-xl p-5 rounded-2xl sm:rounded-3xl flex flex-col gap-4 sm:gap-5 border border-white/20 shadow-2xl">
-                                <div className="flex justify-around text-white/90 px-2">
-                                    <button onClick={() => cropperRef.current?.rotate(-90)} className="flex flex-col items-center gap-1.5 opacity-80 hover:opacity-100 active:scale-95"><Icon name="rotate-ccw" size={24} /><span className="text-xs font-bold">左轉</span></button>
-                                    <button onClick={() => cropperRef.current?.rotate(90)} className="flex flex-col items-center gap-1.5 opacity-80 hover:opacity-100 active:scale-95"><Icon name="rotate-cw" size={24} /><span className="text-xs font-bold">右轉</span></button>
-                                    <button onClick={() => cropperRef.current?.zoom(0.1)} className="flex flex-col items-center gap-1.5 opacity-80 hover:opacity-100 active:scale-95"><Icon name="zoom-in" size={24} /><span className="text-xs font-bold">放大</span></button>
-                                    <button onClick={() => cropperRef.current?.zoom(-0.1)} className="flex flex-col items-center gap-1.5 opacity-80 hover:opacity-100 active:scale-95"><Icon name="zoom-out" size={24} /><span className="text-xs font-bold">縮小</span></button>
+                            <div className="w-full max-w-md bg-stone-900/90 backdrop-blur-xl p-4 sm:p-5 rounded-2xl sm:rounded-3xl flex flex-col gap-3 sm:gap-5 border border-white/20 shadow-2xl">
+                                <div className="flex justify-around text-white/90 px-1 sm:px-2">
+                                    <button onClick={() => cropperRef.current?.rotate(-90)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100 active:scale-95"><Icon name="rotate-ccw" size={20} className="sm:w-6 sm:h-6" /><span className="text-[10px] sm:text-xs font-bold">左轉</span></button>
+                                    <button onClick={() => cropperRef.current?.rotate(90)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100 active:scale-95"><Icon name="rotate-cw" size={20} className="sm:w-6 sm:h-6" /><span className="text-[10px] sm:text-xs font-bold">右轉</span></button>
+                                    <button onClick={() => cropperRef.current?.zoom(0.1)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100 active:scale-95"><Icon name="zoom-in" size={20} className="sm:w-6 sm:h-6" /><span className="text-[10px] sm:text-xs font-bold">放大</span></button>
+                                    <button onClick={() => cropperRef.current?.zoom(-0.1)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100 active:scale-95"><Icon name="zoom-out" size={20} className="sm:w-6 sm:h-6" /><span className="text-[10px] sm:text-xs font-bold">縮小</span></button>
                                 </div>
-                                <div className="flex gap-3">
-                                    <button disabled={isProcessingCrop} onClick={() => { setCroppingImage(null); if(cropperRef.current) cropperRef.current.destroy(); }} className="flex-1 py-3 sm:py-4 bg-white/10 text-white rounded-xl sm:rounded-2xl font-bold active:scale-95 text-sm sm:text-base">取消</button>
-                                    <button disabled={isProcessingCrop} onClick={finalizeCrop} className="flex-2 flex-[2] py-3 sm:py-4 bg-amber-500 text-black rounded-xl sm:rounded-2xl font-black shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm sm:text-base">
-                                        {isProcessingCrop ? <Icon name="loader-2" size={18} className="btn-spinner" /> : null}
+                                <div className="flex gap-2 sm:gap-3">
+                                    <button disabled={isProcessingCrop} onClick={() => { setCroppingImage(null); if(cropperRef.current) cropperRef.current.destroy(); }} className="flex-1 py-2.5 sm:py-4 bg-white/10 text-white rounded-xl sm:rounded-2xl font-bold active:scale-95 text-xs sm:text-base">取消</button>
+                                    <button disabled={isProcessingCrop} onClick={finalizeCrop} className="flex-2 flex-[2] py-2.5 sm:py-4 bg-amber-500 text-black rounded-xl sm:rounded-2xl font-black shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-base">
+                                        {isProcessingCrop ? <Icon name="loader-2" size={16} className="btn-spinner" /> : null}
                                         {isProcessingCrop ? "擷取中..." : "確認擷取範圍"}
                                     </button>
                                 </div>
@@ -611,10 +704,10 @@
                         <div className="fixed inset-0 z-[1050] flex items-center justify-center p-6 bg-stone-900/90 backdrop-blur-md">
                             <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl border-4 border-stone-800 w-full max-w-xs text-center animate-in zoom-in-95">
                                 <Icon name="trash-2" size={40} className="mx-auto mb-3 sm:mb-4 text-red-600" />
-                                <h3 className="text-lg sm:text-xl font-black mb-4 text-stone-800">移除此棋步？</h3>
+                                <h3 className="text-lg sm:text-xl font-black mb-4 text-stone-800">移除此任務？</h3>
                                 <div className="flex gap-3 mt-4 sm:mt-6">
-                                    <button disabled={isDeleting} onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-stone-100 text-stone-600 rounded-xl font-bold active:scale-95 text-sm sm:text-base">取消</button>
-                                    <button disabled={isDeleting} onClick={confirmDelete} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold shadow-lg active:scale-95 flex items-center justify-center gap-2 text-sm sm:text-base">
+                                    <button disabled={isDeleting} onClick={() => setDeleteTarget(null)} className="flex-1 py-2.5 sm:py-3 bg-stone-100 text-stone-600 rounded-lg sm:rounded-xl font-bold active:scale-95 text-sm sm:text-base">取消</button>
+                                    <button disabled={isDeleting} onClick={confirmDelete} className="flex-1 py-2.5 sm:py-3 bg-red-600 text-white rounded-lg sm:rounded-xl font-bold shadow-lg active:scale-95 flex items-center justify-center gap-2 text-sm sm:text-base">
                                         {isDeleting ? <Icon name="loader-2" size={16} className="btn-spinner" /> : null}確認刪除
                                     </button>
                                 </div>
@@ -622,7 +715,6 @@
                         </div>
                     )}
 
-                    {/* 自由縮放 Modal */}
                     {selectedImg && (
                         <div className="fixed inset-0 z-[6000] bg-black/95 overflow-y-auto cursor-zoom-out" onClick={() => setSelectedImg(null)}>
                             <div className="min-h-full flex items-center justify-center p-0 sm:p-6">
@@ -634,72 +726,121 @@
                         </div>
                     )}
 
-                    <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-5 sm:py-6 px-4 sm:px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
-                        <div className="absolute top-4 right-4 sm:right-6 bg-white/10 px-2 sm:px-3 py-1 rounded-full border border-white/20 text-[9px] sm:text-[10px] font-black tracking-widest text-amber-200">VER 13.11</div>
+                    <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-3 sm:py-6 px-4 text-center shadow-md relative z-10 border-b-4 border-amber-500">
+                        <div className="absolute top-2 right-3 sm:top-4 sm:right-6 bg-white/10 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full border border-white/20 text-[8px] sm:text-[10px] font-black tracking-widest text-amber-200">VER 13.23</div>
                         <div className="max-w-4xl mx-auto">
-                            <div className="inline-flex items-center gap-2 px-4 sm:px-6 py-1.5 sm:py-2 rounded-full bg-amber-500 text-black font-black text-lg sm:text-[24px] mb-3 sm:mb-4 shadow-lg ring-4 ring-amber-500/20">
-                                <Icon name="flame" size={20} className="sm:w-6 sm:h-6" /> <span>SAI ‧ 應試覺醒</span>
+                            <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1 sm:py-2 rounded-full bg-amber-500 text-black font-black text-sm sm:text-[24px] mb-2 sm:mb-4 shadow-lg ring-2 sm:ring-4 ring-amber-500/20">
+                                <Icon name="flame" size={16} className="sm:w-6 sm:h-6" /> <span>SAI ‧ 應試覺醒</span>
                             </div>
-                            <h1 className="text-xl sm:text-2xl md:text-3xl font-black mb-4 tracking-tight text-white/90 uppercase">稟軒，引導勝利的神之一手！</h1>
-                            {/* V13.11: 修正倒數計時容器寬度，確保手機端能向外撐開以對齊下方卡片 */}
-                            <div className="grid grid-cols-4 gap-3 sm:gap-4 w-full max-w-md lg:max-w-lg mx-auto">
+                            <h1 className="text-[1.1rem] sm:text-2xl md:text-3xl font-black mb-2 sm:mb-4 tracking-tight text-white/90 uppercase">稟軒，引導勝利的神之一手！</h1>
+                            <div className="grid grid-cols-4 gap-2 sm:gap-4 w-full max-w-xs sm:max-w-md lg:max-w-lg mx-auto">
                                 <TimeUnit label="天" value={timeLeft.d} /> <TimeUnit label="時" value={timeLeft.h} /> <TimeUnit label="分" value={timeLeft.m} /> <TimeUnit label="秒" value={timeLeft.s} />
                             </div>
                         </div>
                     </header>
 
-                    <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 relative z-10">
-                        <div className="grid lg:grid-cols-12 gap-6 lg:gap-8">
-                            {/* 左側媽媽輸入區 */}
+                    <main className="max-w-7xl mx-auto px-2 sm:px-6 py-3 sm:py-6 relative z-10">
+                        <div className="grid lg:grid-cols-12 gap-3 sm:gap-8">
                             <div className="lg:col-span-4">
-                                <div className="glass-card p-4 sm:p-6 rounded-3xl border-2 border-stone-800 shadow-2xl lg:sticky lg:top-6">
-                                    <h2 className="font-black text-lg sm:text-xl mb-4 flex items-center gap-2 text-stone-800"><div className="w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-black"></div> 佈局策略 (媽媽)</h2>
-                                    <div className="flex bg-stone-100 rounded-2xl p-1 mb-5 sm:mb-6 shadow-inner">
-                                        <button onClick={() => setInputMode("photo")} className={`flex-1 py-2.5 sm:py-3 text-xs sm:text-sm font-black rounded-xl transition-all ${inputMode === "photo" ? 'bg-white text-indigo-700 shadow-md' : 'text-stone-400'}`}>拍照佈陣</button>
-                                        <button onClick={() => setInputMode("text")} className={`flex-1 py-2.5 sm:py-3 text-xs sm:text-sm font-black rounded-xl transition-all ${inputMode === "text" ? 'bg-white text-indigo-700 shadow-md' : 'text-stone-400'}`}>文字任務</button>
+                                <div className="glass-card p-3 sm:p-5 rounded-xl sm:rounded-3xl border sm:border-2 border-stone-800 shadow-md lg:sticky lg:top-6">
+                                    <h2 className="font-black text-base sm:text-xl mb-2 sm:mb-4 flex items-center gap-1.5 sm:gap-2 text-stone-800"><div className="w-3 sm:w-5 h-3 sm:h-5 rounded-full bg-black"></div> 佈局策略 (媽媽)</h2>
+                                    <div className="flex bg-stone-100 rounded-lg sm:rounded-xl p-1 mb-2.5 sm:mb-5 shadow-inner">
+                                        <button onClick={() => setInputMode("photo")} className={`flex-1 py-1.5 sm:py-2.5 text-xs sm:text-sm font-black rounded-md sm:rounded-lg transition-all ${inputMode === "photo" ? 'bg-white text-indigo-700 shadow-sm' : 'text-stone-400'}`}>拍照佈陣</button>
+                                        <button onClick={() => setInputMode("text")} className={`flex-1 py-1.5 sm:py-2.5 text-xs sm:text-sm font-black rounded-md sm:rounded-lg transition-all ${inputMode === "text" ? 'bg-white text-indigo-700 shadow-sm' : 'text-stone-400'}`}>文字任務</button>
                                     </div>
-                                    <form onSubmit={addTask} className="space-y-4">
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm sm:text-base text-black shadow-inner" />
-                                            <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-black text-sm sm:text-base outline-none text-black">
-                                                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                                            </select>
+                                    <form onSubmit={addTask} className="space-y-2.5 sm:space-y-4">
+                                        {/* V13.23: 佈局區科目方塊按鈕 */}
+                                        <div className="flex flex-wrap gap-1.5 mb-2">
+                                            {SUBJECTS.map(sub => {
+                                                const isSelected = newCategory === sub;
+                                                const styles = subStyles[sub];
+                                                return (
+                                                    <button
+                                                        key={sub} type="button"
+                                                        onClick={() => setNewCategory(sub)}
+                                                        className={`flex-auto min-w-[28%] px-2 py-1.5 rounded-lg text-[11px] font-black text-white transition-all duration-75 text-center
+                                                            ${isSelected 
+                                                                ? `${styles.active.replace('ring-', 'bg-')} translate-y-[3px] shadow-none ring-2 ring-offset-1` 
+                                                                : `${styles.base} opacity-60 hover:opacity-100 active:translate-y-[3px] active:shadow-none`
+                                                            }`}
+                                                        style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.4)' }}
+                                                    >
+                                                        {sub}
+                                                    </button>
+                                                )
+                                            })}
                                         </div>
-                                        {inputMode === 'photo' ? (
-                                            <div className="space-y-4">
-                                                <div onClick={() => !isPreCompressing && fileInputRef.current.click()} className={`p-6 border-2 border-dashed border-indigo-300 rounded-2xl flex flex-col items-center justify-center cursor-pointer bg-indigo-50/50 transition-colors min-h-[120px] ${isPreCompressing ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white'}`}>
-                                                    {isPreCompressing ? (
-                                                        <><Icon name="loader-2" size={36} className="text-indigo-500 mb-2 btn-spinner" /><span className="text-xs font-black uppercase text-indigo-600 tracking-widest">正在載入圖片...</span></>
-                                                    ) : (
-                                                        <><Icon name="camera" size={36} className="text-indigo-500 mb-2" /><span className="text-xs font-black uppercase text-indigo-600 tracking-widest">點此拍照並裁剪考題</span></>
-                                                    )}
-                                                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
-                                                </div>
-                                                <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scroll">
-                                                    {previewList.map(item => (
-                                                        <div key={item.id} className="p-4 bg-white/70 rounded-2xl border-2 border-stone-200 relative animate-in slide-in-from-right flex flex-col gap-3 shadow-sm">
-                                                            <button type="button" onClick={() => setPreviewList(prev => prev.filter(i => i.id !== item.id))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1.5 shadow-lg z-20 hover:scale-110 active:scale-95 transition-all"><Icon name="x" size={14} /></button>
-                                                            
-                                                            <div className="w-full relative group">
-                                                                <img src={item.dataUrl} className="w-full h-auto object-contain rounded-lg border border-stone-100 shadow-sm cursor-zoom-in max-h-48 bg-white" onClick={() => setSelectedImg(item.dataUrl)} />
-                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg pointer-events-none"></div>
-                                                                <button type="button" onClick={() => handleCleanImage(item.id, item.dataUrl)} disabled={cleaningImageId === item.id} className="absolute bottom-2 right-2 bg-indigo-600 text-white px-3 py-2 rounded-lg text-xs font-black shadow-lg flex items-center gap-1.5 hover:bg-indigo-700 active:scale-95 z-10 transition-all">
-                                                                    {cleaningImageId === item.id ? <Icon name="loader-2" size={14} className="btn-spinner" /> : <Icon name="wand-2" size={14} />}
-                                                                    {cleaningImageId === item.id ? "淨化中..." : "✨ AI 清除筆跡"}
-                                                                </button>
-                                                            </div>
 
-                                                            <div className="flex flex-col gap-2.5">
-                                                                <div className="flex gap-2">
-                                                                    <button type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: 'choice'} : i))} className={`flex-1 py-2 text-xs font-black rounded-lg border transition-colors ${item.qType === 'choice' ? 'bg-stone-800 text-white border-stone-800' : 'bg-white text-stone-500 border-stone-300'}`}>選擇題</button>
-                                                                    <button type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: 'open'} : i))} className={`flex-1 py-2 text-xs font-black rounded-lg border transition-colors ${item.qType === 'open' ? 'bg-stone-800 text-white border-stone-800' : 'bg-white text-stone-500 border-stone-300'}`}>填空題</button>
+                                        <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full p-2 sm:p-3 rounded-lg border sm:border-2 border-stone-200 bg-white font-bold text-[13px] sm:text-base text-black shadow-inner" />
+                                        
+                                        {inputMode === 'photo' ? (
+                                            <div className="space-y-2 sm:space-y-3">
+                                                <div className="flex gap-2 sm:gap-3">
+                                                    <div onClick={() => !isPreCompressing && fileInputRef.current.click()} className={`flex-1 p-3 sm:p-4 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center justify-center cursor-pointer bg-indigo-50/50 transition-colors min-h-[80px] sm:min-h-[100px] ${isPreCompressing ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white'}`}>
+                                                        {isPreCompressing ? (
+                                                            <><Icon name="loader-2" size={24} className="text-indigo-500 mb-1 sm:mb-2 btn-spinner" /><span className="text-[9px] sm:text-[10px] font-black uppercase text-indigo-600 tracking-widest text-center">載入中...</span></>
+                                                        ) : (
+                                                            <><Icon name="image" size={24} className="text-indigo-500 mb-1 sm:mb-2" /><span className="text-[9px] sm:text-[10px] font-black uppercase text-indigo-600 tracking-widest text-center">相簿選圖</span></>
+                                                        )}
+                                                        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                                                    </div>
+                                                    <div onClick={() => !isPreCompressing && startWebcam()} className={`flex-1 p-3 sm:p-4 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center justify-center cursor-pointer bg-indigo-50/50 transition-colors min-h-[80px] sm:min-h-[100px] ${isPreCompressing ? 'opacity-60 cursor-not-allowed' : 'hover:bg-white'}`}>
+                                                        <Icon name="camera" size={24} className="text-indigo-500 mb-1 sm:mb-2" />
+                                                        <span className="text-[9px] sm:text-[10px] font-black uppercase text-indigo-600 tracking-widest text-center">視訊拍攝</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-3 max-h-80 overflow-y-auto pr-1 custom-scroll">
+                                                    {previewList.map(item => (
+                                                        <div key={item.id} className="p-2 sm:p-3 bg-white/70 rounded-lg sm:rounded-xl border sm:border-2 border-stone-200 relative animate-in slide-in-from-right flex flex-col gap-2 sm:gap-3 shadow-sm">
+                                                            <button type="button" onClick={() => setPreviewList(prev => prev.filter(i => i.id !== item.id))} className="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 bg-red-500 text-white rounded-full p-1 shadow-md z-20 hover:scale-110 active:scale-95 transition-all"><Icon name="x" size={10} className="sm:w-3 sm:h-3" /></button>
+                                                            
+                                                            <div className="flex gap-2 sm:gap-3 items-start">
+                                                                <div className="w-16 h-16 sm:w-24 sm:h-24 flex-shrink-0 cursor-zoom-in relative group/img rounded-md sm:rounded-lg overflow-hidden border border-stone-200 shadow-sm bg-white" onClick={() => setSelectedImg(item.dataUrl)}>
+                                                                    <img src={item.dataUrl} className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300" />
+                                                                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                                                        <Icon name="zoom-in" size={16} className="text-white drop-shadow-md sm:w-5 sm:h-5" />
+                                                                    </div>
                                                                 </div>
+                                                                
+                                                                <div className="flex-1 flex flex-col gap-1.5 sm:gap-2">
+                                                                    <button type="button" onClick={() => handleCleanImage(item.id, item.dataUrl)} disabled={cleaningImageId === item.id} className="w-full bg-indigo-50 text-indigo-600 border border-indigo-200 px-1.5 sm:px-2 py-1.5 sm:py-1.5 rounded text-[9px] sm:text-[10px] font-black shadow-sm flex items-center justify-center gap-1 hover:bg-indigo-100 active:scale-95 transition-all">
+                                                                        {cleaningImageId === item.id ? <Icon name="loader-2" size={10} className="btn-spinner sm:w-3 sm:h-3" /> : <Icon name="wand-2" size={10} className="sm:w-3 sm:h-3" />}
+                                                                        {cleaningImageId === item.id ? "淨化中..." : "AI 去筆跡"}
+                                                                    </button>
+                                                                    <div className="flex gap-1 sm:gap-1.5">
+                                                                        <button type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: 'choice'} : i))} className={`flex-1 py-1 sm:py-1.5 text-[8px] sm:text-[9px] font-black rounded border transition-colors ${item.qType === 'choice' ? 'bg-stone-800 text-white border-stone-800' : 'bg-white text-stone-500 border-stone-300'}`}>選擇題</button>
+                                                                        <button type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: 'open'} : i))} className={`flex-1 py-1 sm:py-1.5 text-[8px] sm:text-[9px] font-black rounded border transition-colors ${item.qType === 'open' ? 'bg-stone-800 text-white border-stone-800' : 'bg-white text-stone-500 border-stone-300'}`}>填空題</button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div>
                                                                 {item.qType === 'choice' ? (
-                                                                    <div className="flex justify-between gap-1.5">
-                                                                        {["A", "B", "C", "D"].map(c => <button key={c} type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: c} : i))} className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-black border transition-all ${item.answer === c ? 'bg-amber-500 text-stone-900 border-amber-600 shadow-sm' : 'bg-white text-stone-500 border-stone-300'}`}>{c}</button>)}
+                                                                    <div className="flex justify-between gap-1.5 sm:gap-2">
+                                                                        {["A", "B", "C", "D"].map(c => {
+                                                                            const isSelected = item.answer === c;
+                                                                            const colors = {
+                                                                                "A": { base: "bg-rose-500 shadow-[0_3px_0_0_#be123c]", active: "bg-rose-600 ring-rose-300" },
+                                                                                "B": { base: "bg-blue-500 shadow-[0_3px_0_0_#1d4ed8]", active: "bg-blue-600 ring-blue-300" },
+                                                                                "C": { base: "bg-emerald-500 shadow-[0_3px_0_0_#047857]", active: "bg-emerald-600 ring-emerald-300" },
+                                                                                "D": { base: "bg-amber-500 shadow-[0_3px_0_0_#b45309]", active: "bg-amber-600 ring-amber-300" }
+                                                                            }[c];
+                                                                            return (
+                                                                                <button 
+                                                                                    key={c} type="button" 
+                                                                                    onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: c} : i))} 
+                                                                                    className={`flex-1 py-1.5 sm:py-2 rounded-lg text-xs font-black text-white transition-all duration-75 text-center
+                                                                                        ${isSelected ? `${colors.active} translate-y-[3px] shadow-none ring-2 ring-offset-1` : `${colors.base} opacity-60 hover:opacity-100 active:translate-y-[3px] active:shadow-none`}`}
+                                                                                    style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.4)' }}
+                                                                                >
+                                                                                    {c}
+                                                                                </button>
+                                                                            );
+                                                                        })}
                                                                     </div>
                                                                 ) : (
-                                                                    <input type="text" value={item.answer} onChange={e => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: e.target.value} : i))} className="w-full p-2.5 border-2 border-stone-200 rounded-lg text-sm font-bold text-black shadow-inner outline-none focus:border-indigo-500" placeholder="設定正確解答..." />
+                                                                    <input type="text" value={item.answer} onChange={e => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: e.target.value} : i))} className="w-full p-1.5 sm:p-2 border border-stone-200 rounded text-[10px] sm:text-xs font-bold text-black shadow-inner outline-none focus:border-indigo-500" placeholder="設定正確解答..." />
                                                                 )}
                                                             </div>
                                                         </div>
@@ -707,58 +848,127 @@
                                                 </div>
                                             </div>
                                         ) : (
-                                            <textarea placeholder="例如：完成國文複習講義第一單元..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="4" className="w-full p-3.5 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm sm:text-base outline-none text-black shadow-inner resize-none" />
+                                            <textarea placeholder="例如：完成國文複習講義第一單元..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="2" className="w-full p-2 sm:p-3.5 rounded-lg sm:rounded-xl border sm:border-2 border-stone-200 bg-white font-bold text-sm sm:text-base outline-none text-black shadow-inner resize-none sm:rows-3" />
                                         )}
-                                        <button type="submit" disabled={isSubmitting || (inputMode === 'photo' ? previewList.length === 0 : !newTask.trim())} className={`w-full py-4 rounded-2xl font-black text-base sm:text-lg shadow-xl transition-all flex items-center justify-center gap-3 bg-stone-900 text-white hover:bg-black active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed`}>
+                                        <button type="submit" disabled={isSubmitting || (inputMode === 'photo' ? previewList.length === 0 : !newTask.trim())} className={`w-full py-2.5 sm:py-4 rounded-lg sm:rounded-xl font-black text-sm sm:text-base shadow-sm sm:shadow-xl transition-all flex items-center justify-center gap-1.5 sm:gap-2 bg-stone-900 text-white hover:bg-black active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed`}>
                                             確認佈局落子
                                         </button>
                                     </form>
                                 </div>
                             </div>
 
-                            {/* 右側實戰對局區 */}
-                            <div className="lg:col-span-8" id="battle-section">
-                                <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-4 gap-3 lg:gap-4">
-                                    <h2 className="font-black text-lg sm:text-xl flex items-center gap-2 text-stone-800"><div className="w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-white border-2 border-stone-800 shadow-md"></div> 實戰對局區域</h2>
-                                    <div className="flex bg-stone-200/60 p-1 rounded-xl sm:rounded-2xl border border-stone-200 shadow-inner overflow-x-auto custom-scroll max-w-full">
-                                        <button onClick={() => setViewMode('active')} className={`whitespace-nowrap px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-1.5 sm:gap-2 ${viewMode === 'active' ? 'bg-stone-900 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}><Icon name="swords" size={16} /> 待挑戰 ({counts.active})</button>
-                                        <button onClick={() => setViewMode('future')} className={`whitespace-nowrap px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-1.5 sm:gap-2 ${viewMode === 'future' ? 'bg-indigo-700 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}><Icon name="calendar" size={16} /> 預讀計畫 ({counts.future})</button>
-                                        <button onClick={() => setViewMode('history')} className={`whitespace-nowrap px-3 sm:px-4 py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-black transition-all flex items-center gap-1.5 sm:gap-2 ${viewMode === 'history' ? 'bg-amber-600 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}><Icon name="award" size={16} /> 戰績榜 ({counts.history})</button>
+                            <div className="lg:col-span-8 mt-1 sm:mt-0" id="battle-section">
+                                <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-2 sm:mb-4 gap-2 sm:gap-4">
+                                    <h2 className="font-black text-base sm:text-xl flex items-center gap-1.5 sm:gap-2 text-stone-800"><div className="w-3 sm:w-5 h-3 sm:h-5 rounded-full bg-white border sm:border-2 border-stone-800 shadow-md"></div> 實戰對局區域</h2>
+                                    <div className="flex bg-stone-200/60 p-1 rounded-lg sm:rounded-xl border border-stone-200 shadow-inner overflow-x-auto custom-scroll max-w-full">
+                                        <button onClick={() => setViewMode('active')} className={`whitespace-nowrap px-2.5 sm:px-4 py-1.5 rounded-md sm:rounded-lg text-[11px] sm:text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 ${viewMode === 'active' ? 'bg-stone-900 text-white shadow-md' : 'text-stone-500 hover:text-stone-700'}`}><Icon name="swords" size={12} className="sm:w-3.5 sm:h-3.5" /> 待挑戰 ({counts.active})</button>
+                                        <button onClick={() => setViewMode('future')} className={`whitespace-nowrap px-2.5 sm:px-4 py-1.5 rounded-md sm:rounded-lg text-[11px] sm:text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 ${viewMode === 'future' ? 'bg-indigo-700 text-white shadow-md' : 'text-stone-500 hover:text-stone-700'}`}><Icon name="calendar" size={12} className="sm:w-3.5 sm:h-3.5" /> 預讀計畫 ({counts.future})</button>
+                                        <button onClick={() => setViewMode('history')} className={`whitespace-nowrap px-2.5 sm:px-4 py-1.5 rounded-md sm:rounded-lg text-[11px] sm:text-xs font-black transition-all flex items-center gap-1 sm:gap-1.5 ${viewMode === 'history' ? 'bg-amber-600 text-white shadow-md' : 'text-stone-500 hover:text-stone-700'}`}><Icon name="award" size={12} className="sm:w-3.5 sm:h-3.5" /> 戰績榜 ({counts.history})</button>
                                     </div>
                                 </div>
 
-                                {/* 科目篩選器 */}
-                                <div className="flex gap-2 overflow-x-auto custom-scroll pb-2 mb-4 max-w-full">
-                                    {["全部", ...SUBJECTS].map(sub => (
-                                        <button
-                                            key={sub}
-                                            onClick={() => setSelectedSubject(sub)}
-                                            className={`whitespace-nowrap px-4 py-2 rounded-full text-xs sm:text-sm font-black transition-all border shadow-sm ${
-                                                selectedSubject === sub
-                                                    ? 'bg-stone-800 text-white border-stone-800'
-                                                    : 'bg-white text-stone-500 border-stone-200 hover:bg-stone-100 hover:text-stone-800'
-                                            }`}
-                                        >
-                                            {sub}
-                                        </button>
-                                    ))}
+                                <div className="flex flex-wrap gap-1.5 sm:gap-2 pb-1.5 mb-2 sm:mb-3 max-w-full">
+                                    {["全部", ...SUBJECTS].map(sub => {
+                                        const styles = {
+                                            "全部": { base: "bg-stone-500 shadow-[0_3px_0_0_#57534e]", active: "bg-stone-700 ring-stone-800" },
+                                            "國文": { base: "bg-rose-500 shadow-[0_3px_0_0_#be123c]", active: "bg-rose-700 ring-rose-800" },
+                                            "英文": { base: "bg-blue-500 shadow-[0_3px_0_0_#1d4ed8]", active: "bg-blue-700 ring-blue-800" },
+                                            "數學": { base: "bg-amber-500 shadow-[0_3px_0_0_#b45309]", active: "bg-amber-700 ring-amber-800" },
+                                            "自然": { base: "bg-emerald-500 shadow-[0_3px_0_0_#047857]", active: "bg-emerald-700 ring-emerald-800" },
+                                            "社會": { base: "bg-purple-500 shadow-[0_3px_0_0_#6d28d9]", active: "bg-purple-700 ring-purple-800" },
+                                            "其他": { base: "bg-teal-500 shadow-[0_3px_0_0_#0f766e]", active: "bg-teal-700 ring-teal-800" }
+                                        }[sub];
+                                        const isSelected = selectedSubject === sub;
+                                        return (
+                                            <button
+                                                key={sub}
+                                                onClick={() => setSelectedSubject(sub)}
+                                                className={`flex-auto min-w-[14%] sm:min-w-[60px] px-1.5 py-1.5 sm:py-2 rounded-md sm:rounded-lg text-[10px] sm:text-xs font-black text-white transition-all duration-75 text-center
+                                                    ${isSelected ? `${styles.active} translate-y-[3px] shadow-none ring-2 ring-offset-1` : `${styles.base} hover:brightness-110 active:translate-y-[3px] active:shadow-none`}`}
+                                                style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.4)' }}
+                                            >
+                                                {sub}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
 
-                                <div className="grid md:grid-cols-2 gap-4 sm:gap-6 min-h-[400px]">
-                                    {listToDisplay.map(task => (
-                                        <TaskCard 
-                                            key={task.id} task={task} mode={viewMode} isGenerating={generatingId === task.id} genStatus={generatingStatus}
-                                            onDelete={() => setDeleteTarget(task.id)} onSubmit={ans => submitAnswer(task, ans)} onTextDone={() => handleTextDone(task)}
-                                            onGenerateSimilar={() => generateSimilarTask(task)} openImg={setSelectedImg} onUpdateNote={note => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { note })}
-                                        />
-                                    ))}
-                                    {listToDisplay.length === 0 && <div className="md:col-span-2 text-center py-20 sm:py-24 border-4 border-dashed border-stone-300 rounded-3xl font-black text-stone-400 italic px-6 sm:px-10 text-sm sm:text-base">{isLoading ? "正在連線靈界..." : `目前「${selectedSubject}」清單清空，等候落子。`}</div>}
+                                <div className="flex flex-col gap-2.5 sm:gap-4 min-h-[300px] sm:min-h-[400px] content-start">
+                                    {textTasks.length > 0 && (
+                                        <div className="bg-white/95 rounded-xl sm:rounded-2xl border border-indigo-100 shadow-sm overflow-hidden flex flex-col mb-1">
+                                            <div className="bg-indigo-50/80 p-2 sm:p-3 border-b border-indigo-100 flex items-center gap-1.5 sm:gap-2">
+                                                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-700">
+                                                    <Icon name="book-open" size={12} className="sm:w-3.5 sm:h-3.5" />
+                                                </div>
+                                                <h3 className="font-black text-[13px] sm:text-base text-indigo-900 tracking-wide">
+                                                    {viewMode === 'active' ? '今日讀書計畫' : viewMode === 'future' ? '預讀計畫' : '歷史讀書紀錄'}
+                                                    <span className="text-[10px] sm:text-xs text-indigo-500 font-bold ml-1.5">(文字任務)</span>
+                                                </h3>
+                                            </div>
+                                            <div className="flex flex-col divide-y divide-indigo-50">
+                                                {textTasks.map(task => {
+                                                    const isAiGen = task.content && task.content.startsWith('【AI 智能挑戰】');
+                                                    const displayContent = isAiGen ? task.content.replace('【AI 智能挑戰】\n', '') : task.content;
+                                                    return (
+                                                        <div key={task.id} className="flex items-center gap-2 sm:gap-3 py-1.5 px-2.5 sm:py-2 sm:px-4 hover:bg-indigo-50/40 transition-colors group">
+                                                            {viewMode === 'active' ? (
+                                                                <button onClick={() => handleTextDone(task)} className="text-stone-300 hover:text-green-500 active:scale-90 transition-transform flex-shrink-0">
+                                                                    <Icon name="circle" size={18} className="sm:w-5 sm:h-5" />
+                                                                </button>
+                                                            ) : (
+                                                                <div className="flex-shrink-0">
+                                                                    <Icon name={task.completed ? "check-circle-2" : "circle"} size={18} className={`sm:w-5 sm:h-5 ${task.completed ? "text-green-500" : "text-stone-300"}`} />
+                                                                </div>
+                                                            )}
+                                                            <div className="flex-1 min-w-0 flex items-center gap-1.5 sm:gap-2.5 overflow-hidden">
+                                                                <select 
+                                                                    value={task.category || '其他'} 
+                                                                    onChange={(e) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { category: e.target.value })}
+                                                                    className={`appearance-none cursor-pointer outline-none px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-black flex-shrink-0 text-center tag-${task.category || '其他'}`}
+                                                                >
+                                                                    {SUBJECTS.map(s => <option key={s} value={s} className="bg-white text-stone-800">{s}</option>)}
+                                                                </select>
+                                                                <span className="text-[9px] sm:text-[11px] font-bold text-stone-400 flex-shrink-0 tracking-widest">{task.date}</span>
+                                                                {isAiGen && <span className="text-[8px] sm:text-[9px] font-black text-indigo-600 bg-indigo-50 px-1 sm:px-1.5 py-0.5 rounded border border-indigo-100 flex items-center gap-1 flex-shrink-0"><Icon name="sparkles" size={8} className="sm:w-2.5 sm:h-2.5"/> AI題</span>}
+                                                                <div className={`text-[13px] sm:text-base leading-tight font-bold text-stone-800 truncate ${task.completed ? 'line-through text-stone-400 opacity-60' : ''}`} title={displayContent}>
+                                                                    {displayContent}
+                                                                </div>
+                                                            </div>
+                                                            <button onClick={() => setDeleteTarget(task.id)} className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-stone-300 hover:text-red-500 p-1 transition-all active:scale-90 flex-shrink-0">
+                                                                <Icon name="trash-2" size={14} className="sm:w-4 sm:h-4" />
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {photoTasks.length > 0 && (
+                                        <div className="flex items-center gap-1.5 sm:gap-2 mt-2 sm:mt-3 mb-0.5 sm:mb-1 pb-1 border-b border-amber-200">
+                                            <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-amber-100 flex items-center justify-center text-amber-600"><Icon name="crosshair" size={12} className="sm:w-3.5 sm:h-3.5" /></div>
+                                            <h3 className="font-black text-[13px] sm:text-base text-amber-900 tracking-wide">
+                                                {viewMode === 'active' ? '解題計畫' : viewMode === 'future' ? '未來解題' : '解題戰績'} 
+                                                <span className="text-[10px] sm:text-xs text-amber-600 font-bold ml-1.5">(錯題佈陣)</span>
+                                            </h3>
+                                        </div>
+                                    )}
+                                    <div className="grid md:grid-cols-2 gap-2.5 sm:gap-4">
+                                        {photoTasks.map(task => (
+                                            <TaskCard 
+                                                key={task.id} task={task} mode={viewMode} isGenerating={generatingId === task.id} genStatus={generatingStatus}
+                                                onDelete={() => setDeleteTarget(task.id)} onSubmit={ans => submitAnswer(task, ans)} onTextDone={() => handleTextDone(task)}
+                                                onGenerateSimilar={() => generateSimilarTask(task)} openImg={setSelectedImg} onUpdateNote={note => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { note })}
+                                            />
+                                        ))}
+                                    </div>
+                                    {listToDisplay.length === 0 && <div className="text-center py-12 sm:py-20 border-2 border-dashed border-stone-300 rounded-xl sm:rounded-2xl font-black text-stone-400 italic px-4 sm:px-6 text-xs sm:text-sm">{isLoading ? "正在連線靈界..." : `目前「${selectedSubject}」清單清空，等候落子。`}</div>}
                                 </div>
 
                                 {viewMode === 'history' && counts.history > historyDisplayLimit && (
-                                    <div className="mt-6 sm:mt-8 text-center animate-in slide-in-from-bottom">
-                                        <button onClick={() => setHistoryDisplayLimit(prev => prev + 10)} className="bg-white border-2 border-stone-800 text-stone-800 px-6 sm:px-8 py-3 rounded-xl sm:rounded-2xl font-black text-sm shadow-md hover:bg-stone-50 active:scale-95 transition-all">
-                                            <Icon name="chevrons-down" size={18} className="inline mr-2" /> 檢索更多戰績 (展示 {historyDisplayLimit} / {counts.history} 題)
+                                    <div className="mt-4 sm:mt-6 text-center animate-in slide-in-from-bottom">
+                                        <button onClick={() => setHistoryDisplayLimit(prev => prev + 15)} className="bg-white border border-stone-300 text-stone-700 px-5 sm:px-6 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black text-[11px] sm:text-sm shadow-sm hover:bg-stone-50 active:scale-95 transition-all">
+                                            <Icon name="chevrons-down" size={14} className="inline mr-1 sm:w-4 sm:h-4" /> 檢索更多戰績 (展示 {historyDisplayLimit} / {counts.history} 題)
                                         </button>
                                     </div>
                                 )}
@@ -771,86 +981,97 @@
 
         const TaskCard = ({ task, onDelete, onSubmit, onTextDone, onGenerateSimilar, openImg, mode, onUpdateNote, isGenerating, genStatus }) => {
             const [myInput, setMyInput] = useState("");
-            
             const contentStr = task.content || "";
             const isReview = task.wasIncorrect && task.status === 'needsReview' && mode === 'active';
             const isAiGen = contentStr.startsWith('【AI 智能挑戰】');
             const displayContent = isAiGen ? contentStr.replace('【AI 智能挑戰】\n', '') : contentStr;
             const attemptCount = task.attempts || 1;
-
             return (
-                <div className={`flex flex-col rounded-2xl sm:rounded-3xl border-2 transition-all duration-300 glass-card shadow-lg group overflow-hidden border-stone-800 category-${task.category || '其他'} ${isReview ? 'ring-4 ring-amber-400 animate-pulse' : ''} ${mode === 'history' ? 'opacity-85 grayscale-[0.05]' : ''}`}>
-                    <div className="p-3 sm:p-4 flex items-center justify-between border-b bg-stone-50/50">
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <span className="bg-stone-800 text-white text-[10px] sm:text-xs font-black px-2 py-0.5 rounded shadow-sm">#{task.globalIndex || '?'}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black tag-${task.category || '其他'}`}>{task.category || '未分類'}</span>
-                            
+                <div className={`flex flex-col rounded-lg sm:rounded-2xl border transition-all duration-300 bg-white shadow-sm hover:shadow-md group overflow-hidden border-stone-200 category-${task.category || '其他'} ${isReview ? 'ring-2 ring-amber-400 animate-pulse' : ''} ${mode === 'history' ? 'opacity-85 grayscale-[0.05]' : ''}`}>
+                    <div className="p-1.5 sm:p-2.5 flex items-center justify-between border-b border-stone-100 bg-stone-50/80">
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            <span className="bg-stone-800 text-white text-[8px] sm:text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm">#{task.globalIndex || '?'}</span>
+                            <select 
+                                value={task.category || '其他'} 
+                                onChange={(e) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { category: e.target.value })}
+                                className={`appearance-none cursor-pointer outline-none px-2 sm:px-2.5 py-0.5 rounded-full text-[8px] sm:text-[10px] font-black text-center tag-${task.category || '其他'}`}
+                            >
+                                {SUBJECTS.map(s => <option key={s} value={s} className="bg-white text-stone-800">{s}</option>)}
+                            </select>
                             {mode === 'history' && task.type === 'photo' && (
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-black border flex items-center gap-1 shadow-sm ${attemptCount === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
-                                    <Icon name={attemptCount === 1 ? "check-circle-2" : "target"} size={12} />
+                                <span className={`px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-black border flex items-center gap-0.5 sm:gap-1 ${attemptCount === 1 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'}`}>
+                                    <Icon name={attemptCount === 1 ? "check-circle-2" : "target"} size={8} className="sm:w-2.5 sm:h-2.5" />
                                     {attemptCount === 1 ? '一擊必殺' : `挑戰 ${attemptCount} 次`}
                                 </span>
                             )}
-
                             {mode === 'history' && (
-                                <button onClick={e => { e.stopPropagation(); onGenerateSimilar(); }} disabled={isGenerating} className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black border transition-all ${isGenerating ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 shadow-sm'}`}>
-                                    {isGenerating ? <Icon name="loader-2" size={12} className="btn-spinner" /> : <Icon name="sparkles" size={12} />} {isGenerating ? (genStatus === 'gemini' ? '思考中' : '繪圖中') : `AI題(${task.similarCount || 0})`}
+                                <button onClick={e => { e.stopPropagation(); onGenerateSimilar(); }} disabled={isGenerating} className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-black border transition-all ${isGenerating ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 active:scale-95'}`}>
+                                    {isGenerating ? <Icon name="loader-2" size={8} className="btn-spinner sm:w-2.5 sm:h-2.5" /> : <Icon name="sparkles" size={8} className="sm:w-2.5 sm:h-2.5" />} {isGenerating ? '中...' : '類似題'}
                                 </button>
                             )}
-                            <span className={`text-[10px] sm:text-xs font-black tracking-tighter uppercase ${mode === 'future' ? 'text-indigo-600' : 'text-stone-500'}`}>{task.date || '未知日期'}</span>
+                            <span className={`text-[8px] sm:text-[10px] font-bold uppercase tracking-wider ${mode === 'future' ? 'text-indigo-600' : 'text-stone-400'}`}>{task.date || '未知日期'}</span>
                         </div>
-                        <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-stone-400 hover:text-red-500 p-1.5 transition-all active:scale-90"><Icon name="trash-2" size={18} /></button>
+                        <button onClick={onDelete} className="text-stone-300 hover:text-red-500 p-0.5 sm:p-1 transition-all active:scale-90"><Icon name="trash-2" size={12} className="sm:w-3.5 sm:h-3.5" /></button>
                     </div>
-                    <div className="p-4 sm:p-5 flex-1 flex flex-col">
-                        <div className="flex-1">
-                            <div className="flex items-start gap-3 sm:gap-4 mb-4">
-                                {task.type === 'text' && mode === 'active' && <button onClick={onTextDone} className="mt-0.5 text-stone-300 hover:text-green-500 active:scale-90 transition-transform flex-shrink-0"><Icon name="circle" size={28} className="sm:w-8 sm:h-8" /></button>}
-                                <div className="flex-1">
-                                    {isAiGen && (
-                                        <div className="ai-label-subtle">
-                                            AI 智能佈陣
-                                        </div>
-                                    )}
-                                    <div className="formal-exam-container p-4 sm:p-5">
+                    <div className="p-2 sm:p-3 flex flex-col gap-1.5 sm:gap-2">
+                        <div className="flex items-start gap-2 sm:gap-4">
+                            <div className="flex-1 min-w-0">
+                                {isAiGen && <div className="ai-label-subtle">AI 智能佈陣</div>}
+                                {displayContent && (
+                                    <div className="formal-exam-container p-2 sm:p-3">
                                         <div className={`exam-question-text ${mode === 'history' ? 'line-through text-stone-400 opacity-60' : ''}`}>
-                                            {displayContent || '解出下列對局：'}
+                                            {displayContent}
                                         </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
                             {task.imageUrl && (
-                                <div className="mb-5 sm:mb-6 cursor-zoom-in relative group/img rounded-xl sm:rounded-2xl overflow-hidden border-2 border-stone-200 shadow-md p-1 bg-white" onClick={() => openImg(task.imageUrl)}>
-                                    <img src={task.imageUrl} className="w-full h-auto object-contain rounded-lg sm:rounded-xl group-hover:brightness-95 transition-all max-h-96 sm:max-h-[600px]" />
-                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity bg-black/10"><Icon name="maximize" size={32} className="text-white drop-shadow-lg" /></div>
+                                <div className="w-16 h-16 sm:w-28 sm:h-28 flex-shrink-0 cursor-zoom-in relative group/img rounded-md sm:rounded-lg overflow-hidden border border-stone-200 shadow-sm bg-white mt-0.5 sm:mt-1" onClick={() => openImg(task.imageUrl)}>
+                                    <img src={task.imageUrl} className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300" />
+                                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                                        <Icon name="zoom-in" size={16} className="text-white drop-shadow-md sm:w-6 sm:h-6" />
+                                    </div>
+                                    <div className="absolute bottom-0.5 right-0.5 sm:bottom-1 sm:right-1 bg-stone-900/70 text-white text-[7px] sm:text-[8px] px-1 sm:px-1.5 py-0.5 rounded flex items-center gap-0.5 pointer-events-none z-10 backdrop-blur-sm">
+                                        <Icon name="zoom-in" size={8} className="sm:w-2.5 sm:h-2.5" /> 放大
+                                    </div>
                                 </div>
                             )}
                         </div>
                         {task.type === 'photo' && mode === 'active' && (
-                            <div className="mt-auto pt-4 bg-stone-100/50 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-stone-200 shadow-inner">
-                                <p className="text-[10px] sm:text-xs font-black text-stone-400 mb-2 sm:mb-3 uppercase tracking-tighter">提交解答</p>
+                            <div className="pt-0.5 sm:pt-1">
                                 {task.questionType === 'choice' ? (
-                                    <div className="grid grid-cols-4 gap-2">
-                                        {["A", "B", "C", "D"].map(c => <button key={c} onClick={() => onSubmit(c)} className="aspect-square bg-white border-2 border-stone-300 rounded-lg sm:rounded-xl font-black text-base sm:text-lg hover:bg-stone-900 hover:text-white transition-all active:scale-90 shadow-sm">{c}</button>)}
+                                    <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+                                        {["A", "B", "C", "D"].map(c => {
+                                            const colors = {
+                                                "A": "bg-rose-500 shadow-[0_3px_0_0_#be123c]",
+                                                "B": "bg-blue-500 shadow-[0_3px_0_0_#1d4ed8]",
+                                                "C": "bg-emerald-500 shadow-[0_3px_0_0_#047857]",
+                                                "D": "bg-amber-500 shadow-[0_3px_0_0_#b45309]"
+                                            }[c];
+                                            return (
+                                                <button 
+                                                    key={c} onClick={() => onSubmit(c)} 
+                                                    className={`py-1.5 sm:py-2 rounded-md sm:rounded-lg font-black text-sm sm:text-base text-white transition-all duration-75 active:translate-y-[3px] active:shadow-none hover:brightness-110 ${colors}`}
+                                                    style={{ textShadow: '0px 1px 2px rgba(0,0,0,0.4)' }}
+                                                >
+                                                    {c}
+                                                </button>
+                                            )
+                                        })}
                                     </div>
                                 ) : (
-                                    <div className="flex gap-2">
-                                        <input type="text" value={myInput} onChange={e => setMyInput(e.target.value)} placeholder="填寫答案..." className="flex-1 p-2.5 sm:p-3 rounded-lg sm:rounded-xl border-2 border-stone-200 font-bold text-sm sm:text-base bg-white text-black outline-none focus:border-stone-900 shadow-inner" onKeyDown={e => e.key === 'Enter' && onSubmit(myInput)} />
-                                        <button onClick={() => onSubmit(myInput)} className="bg-stone-800 text-white px-4 sm:px-6 rounded-lg sm:rounded-xl font-black text-xs sm:text-sm active:scale-95 transition-all shadow-md">提交</button>
+                                    <div className="flex gap-1.5 sm:gap-2">
+                                        <input type="text" value={myInput} onChange={e => setMyInput(e.target.value)} placeholder="填寫答案..." className="flex-1 p-1 sm:p-2 rounded-md sm:rounded-lg border border-stone-300 font-bold text-xs sm:text-sm bg-white text-black outline-none focus:border-stone-800 shadow-inner" onKeyDown={e => e.key === 'Enter' && onSubmit(myInput)} />
+                                        <button onClick={() => onSubmit(myInput)} className="bg-stone-800 text-white px-3 sm:px-5 rounded-md sm:rounded-lg font-black text-[10px] sm:text-xs active:scale-95 transition-all shadow-sm hover:bg-black">提交</button>
                                     </div>
                                 )}
                             </div>
                         )}
                         {(mode === 'future' || mode === 'history') && task.type === 'photo' && (
-                            <div className={`mt-auto p-3 sm:p-4 rounded-xl sm:rounded-2xl border flex items-center justify-between shadow-inner ${mode === 'future' ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}>
-                                <span className="text-xs sm:text-sm font-black text-stone-500 uppercase">{mode === 'future' ? '預設' : '解答'}:</span> <span className="text-lg sm:text-xl font-black text-stone-900 drop-shadow-sm">{task.correctAnswer || '無'}</span>
+                            <div className={`mt-0.5 sm:mt-1 p-1.5 sm:p-2 rounded-md sm:rounded-lg border flex items-center justify-between shadow-inner ${mode === 'future' ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}>
+                                <span className="text-[10px] sm:text-xs font-black text-stone-500 uppercase">{mode === 'future' ? '預設' : '解答'}:</span> <span className="text-sm sm:text-base font-black text-stone-900">{task.correctAnswer || '無'}</span>
                             </div>
                         )}
-                    </div>
-                    <div className="px-4 sm:px-5 pb-4 sm:pb-5 mt-1 sm:mt-2">
-                        <div className="flex items-center gap-2 sm:gap-3 border-t-2 border-stone-100 pt-3 sm:pt-4">
-                            <Icon name="edit-3" size={16} className="text-stone-300" />
-                            <input type="text" placeholder="補充心得筆記..." defaultValue={task.note || ''} onBlur={e => onUpdateNote(e.target.value)} className="w-full bg-transparent outline-none italic font-black text-xs sm:text-sm text-stone-500 focus:text-amber-600 transition-colors" />
-                        </div>
                     </div>
                 </div>
             );
