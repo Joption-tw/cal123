@@ -2,8 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V12.4</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V12.9</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
@@ -12,7 +12,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Cropper.js (圖片編輯核心) -->
+    <!-- Cropper.js -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
 
@@ -44,23 +44,20 @@
         .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         
-        .celebrate-pop { animation: pop-in 0.3s cubic-bezier(0.26, 0.53, 0.74, 1.48); }
-        @keyframes pop-in { 0% { transform: scale(0.85); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-
-        /* 試卷美學核心樣式 */
+        /* 試卷美學樣式 */
         .formal-exam-container {
             background: #ffffff;
             border: 1px solid #e5e7eb;
             border-radius: 8px;
-            padding: 24px;
+            padding: 20px;
             margin-bottom: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03);
         }
         
         .exam-question-text {
             font-family: 'Noto Serif TC', serif;
             font-weight: 500;
-            font-size: 1.15rem;
+            font-size: 1.1rem;
             line-height: 2.0;
             color: #111827;
             letter-spacing: 0.01em;
@@ -75,25 +72,17 @@
             font-size: 0.7rem;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.15em;
-            margin-bottom: 12px;
+            letter-spacing: 0.12em;
+            margin-bottom: 10px;
             opacity: 0.8;
         }
 
         .ai-label-subtle::before {
-            content: "";
-            width: 8px;
-            height: 8px;
-            background: #4338ca;
-            border-radius: 50%;
+            content: ""; width: 6px; height: 6px; background: #4338ca; border-radius: 50%;
         }
 
-        /* 編輯器 Modal 專用樣式 */
-        .cropper-view-box, .cropper-face {
-            border-radius: 0; /* 考題裁剪通常是矩形 */
-        }
         .cropper-modal {
-            background-color: rgba(0, 0, 0, 0.85);
+            background-color: rgba(0, 0, 0, 0.92);
         }
     </style>
 </head>
@@ -125,9 +114,18 @@
 
         const SUBJECTS = ["國文", "英文", "數學", "自然", "社會", "其他"];
 
+        // 穩定的 Icon 組件
         const Icon = ({ name, size = 20, className = "" }) => {
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
-            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
+            useEffect(() => {
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
+            }, [name]);
+            return (
+                <span className={`inline-flex items-center justify-center ${className}`} style={{ width: size, height: size }}>
+                    <i data-lucide={name} style={{ width: size, height: size }}></i>
+                </span>
+            );
         };
 
         const TimeUnit = ({ label, value }) => (
@@ -154,13 +152,17 @@
             const [generatingId, setGeneratingId] = useState(null); 
             const [viewMode, setViewMode] = useState("active"); 
             const [inputMode, setInputMode] = useState("text"); 
+            
+            // 狀態包含 loading 用以顯示全螢幕提示
             const [aiMessage, setAiMessage] = useState(null);
+            
             const [selectedImg, setSelectedImg] = useState(null); 
             const [deleteTarget, setDeleteTarget] = useState(null);
             const [isDeleting, setIsDeleting] = useState(false);
 
-            // 圖片裁剪狀態
-            const [croppingImage, setCroppingImage] = useState(null); // 目前正在裁剪的原始圖片 URL
+            // 圖片裁剪
+            const [croppingImage, setCroppingImage] = useState(null);
+            const [isProcessingCrop, setIsProcessingCrop] = useState(false);
             const cropperRef = useRef(null);
             const cropperImgRef = useRef(null);
 
@@ -172,34 +174,39 @@
 
             const targetDate = useMemo(() => new Date('2026-05-16T00:00:00'), []);
 
-            const callGeminiWithRetry = async (systemPrompt, userPrompt, schema = null, imageBase64 = null) => {
+            const todayStr = useMemo(() => {
+                const now = new Date();
+                return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+            }, []);
+
+            const callGeminiWithRetry = async (systemPrompt, userPrompt, schema = null, imageBase64 = null, tryTextOnly = false) => {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
                 const parts = [{ text: userPrompt }];
-                if (imageBase64 && imageBase64.includes('base64,')) {
-                    const mimeType = imageBase64.match(/data:(.*?);/)?.[1] || "image/jpeg";
-                    const data = imageBase64.split('base64,')[1];
-                    parts.push({ inlineData: { mimeType: "image/jpeg", data } });
+                if (!tryTextOnly && imageBase64 && imageBase64.includes('base64,')) {
+                    parts.push({ inlineData: { mimeType: "image/jpeg", data: imageBase64.split('base64,')[1] } });
                 }
-                const payload = {
-                    contents: [{ role: "user", parts }],
-                    systemInstruction: { parts: [{ text: systemPrompt }] }
-                };
+                const payload = { contents: [{ role: "user", parts }], systemInstruction: { parts: [{ text: systemPrompt }] } };
                 if (schema) payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema };
 
-                for (let i = 0; i <= 5; i++) {
+                for (let i = 0; i <= 3; i++) {
                     try {
                         const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                        if (!response.ok) throw new Error("API_ERROR");
                         const result = await response.json();
-                        const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                        if (!text) throw new Error("EMPTY");
-                        return text;
-                    } catch (err) { if (i === 5) throw err; await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000)); }
+                        return result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    } catch (err) { 
+                        if (i === 3) {
+                            if (!tryTextOnly && imageBase64) return await callGeminiWithRetry(systemPrompt, userPrompt, schema, null, true);
+                            throw err;
+                        }
+                        await new Promise(r => setTimeout(r, 1000)); 
+                    }
                 }
             };
 
             const callImagen = async (prompt) => {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
-                const payload = { instances: { prompt: `${prompt}. Textbook style scientific diagram, elegant black and white lines, white background, no text.` }, parameters: { sampleCount: 1 } };
+                const payload = { instances: { prompt: `${prompt}. Textbook style illustration, minimalist lines.` }, parameters: { sampleCount: 1 } };
                 try {
                     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                     const result = await response.json();
@@ -211,11 +218,11 @@
                 setGeneratingId(task.id);
                 setGeneratingStatus('gemini');
                 try {
-                    const sys = "會考命師。生成觀念相同題目。輸出 JSON。要求：在 content 中的選項 (A)(B)(C)(D) 必須分別換行排版。不要提及「如附圖」。";
+                    const sys = "國中會考專家。基於原題生成一題類似題。輸出 JSON。要求：選項 (A)(B)(C)(D) 換行。";
                     const schema = { type: "OBJECT", properties: { content: { type: "STRING" }, qType: { type: "STRING", enum: ["choice", "open"] }, answer: { type: "STRING" }, imagePrompt: { type: "STRING" } }, required: ["content", "qType", "answer", "imagePrompt"] };
-                    const userP = `科目：${task.category}。原題：${task.content}。請產出類似題。`;
-                    const rawRes = await callGeminiWithRetry(sys, userP, schema, task.imageUrl);
+                    const rawRes = await callGeminiWithRetry(sys, `科目：${task.category}。內容：${task.content}。`, schema, task.imageUrl);
                     const jsonMatch = rawRes.match(/\{[\s\S]*\}/);
+                    if (!jsonMatch) throw new Error("PARSE_FAIL");
                     const data = JSON.parse(jsonMatch[0]);
                     let genImg = null;
                     if (data.imagePrompt && data.imagePrompt.length > 5) { 
@@ -225,18 +232,15 @@
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { 
                         type: 'photo', questionType: data.qType || 'choice', 
                         content: `【AI 智能挑戰】\n${data.content}`, 
-                        date: new Date().toISOString().split('T')[0], 
-                        category: task.category, imageUrl: genImg, correctAnswer: data.answer || '無', 
-                        note: `由 #${task.globalIndex} 衍生落子`, 
-                        completed: false, wasIncorrect: false, status: 'active', 
-                        createdAt: serverTimestamp(), similarCount: 0 
+                        date: new Date().toISOString().split('T')[0], category: task.category || '其他', imageUrl: genImg, correctAnswer: data.answer || '無', 
+                        note: `由 #${task.globalIndex} 衍生生成`, completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), similarCount: 0 
                     });
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { similarCount: (task.similarCount || 0) + 1 });
-                    setAiMessage({ text: "AI 已精準落子！", status: 'correct' });
+                    setAiMessage({ text: "AI 已精準落子！", status: 'correct', loading: false });
                     setTimeout(() => setAiMessage(null), 2000);
-                } catch (e) {
-                    setAiMessage({ text: "AI 思考受阻，請重試。", status: 'wrong' });
-                    setTimeout(() => setAiMessage(null), 2500);
+                } catch (e) { 
+                    setAiMessage({ text: "AI 解析受阻，請重試。", status: 'wrong', loading: false }); 
+                    setTimeout(() => setAiMessage(null), 2500); 
                 } finally { setGeneratingId(null); setGeneratingStatus(null); }
             };
 
@@ -253,37 +257,35 @@
             useEffect(() => {
                 if (!user) return;
                 const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'));
-                const unsubscribe = onSnapshot(q, (snap) => {
+                return onSnapshot(q, (snap) => {
                     setTasks(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                     setIsLoading(false);
-                    if (viewMode === 'history') setHasLoadedHistory(true);
                 });
-                return () => unsubscribe();
-            }, [user, viewMode]);
+            }, [user]);
 
-            // V12.4 修正點：將 todayStr 的定義移至過濾邏輯之前
-            const todayStr = useMemo(() => {
-                const now = new Date();
-                return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-            }, []);
-
+            // V12.9: 極度安全的排序防爆邏輯
             const sortedTasks = useMemo(() => {
                 const sorted = [...tasks].sort((a, b) => {
-                    if (a.date !== b.date) return a.date.localeCompare(b.date);
-                    return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
+                    const dateA = a.date || "9999-99-99";
+                    const dateB = b.date || "9999-99-99";
+                    if (dateA !== dateB) return dateA.localeCompare(dateB);
+                    
+                    const timeA = a.createdAt?.seconds || a.createdAt || 0;
+                    const timeB = b.createdAt?.seconds || b.createdAt || 0;
+                    return timeA - timeB;
                 });
                 return sorted.map((t, idx) => ({ ...t, globalIndex: idx + 1 }));
             }, [tasks]);
 
             const listToDisplay = useMemo(() => {
-                if (viewMode === 'active') return sortedTasks.filter(t => !t.completed && t.date <= todayStr);
-                if (viewMode === 'future') return sortedTasks.filter(t => t.date > todayStr);
+                if (viewMode === 'active') return sortedTasks.filter(t => !t.completed && (t.date || "9999-99-99") <= todayStr);
+                if (viewMode === 'future') return sortedTasks.filter(t => (t.date || "9999-99-99") > todayStr);
                 return sortedTasks.filter(t => t.completed).reverse().slice(0, historyDisplayLimit);
             }, [sortedTasks, viewMode, todayStr, historyDisplayLimit]);
 
             const counts = useMemo(() => ({
-                active: sortedTasks.filter(t => !t.completed && t.date <= todayStr).length,
-                future: sortedTasks.filter(t => t.date > todayStr).length,
+                active: sortedTasks.filter(t => !t.completed && (t.date || "9999-99-99") <= todayStr).length,
+                future: sortedTasks.filter(t => (t.date || "9999-99-99") > todayStr).length,
                 history: sortedTasks.filter(t => t.completed).length
             }), [sortedTasks, todayStr]);
 
@@ -291,64 +293,91 @@
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = () => {
-                    setCroppingImage(reader.result); // 開啟編輯器
-                };
+                reader.onload = () => setCroppingImage(reader.result);
                 reader.readAsDataURL(file);
-                e.target.value = ""; // 重置 input 讓同一個檔案可以再次選取
-            };
-
-            const startCropper = () => {
-                if (cropperRef.current) cropperRef.current.destroy();
-                cropperRef.current = new Cropper(cropperImgRef.current, {
-                    aspectRatio: NaN, // 自由比例
-                    viewMode: 1,
-                    autoCropArea: 1,
-                    dragMode: 'move',
-                    background: false,
-                });
+                e.target.value = "";
             };
 
             const finalizeCrop = () => {
-                const canvas = cropperRef.current.getCroppedCanvas({
-                    maxWidth: 1000,
-                    maxHeight: 1000,
-                });
-                const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                setPreviewList(prev => [...prev, { 
-                    id: Math.random().toString(36).substr(2, 9), 
-                    dataUrl: croppedDataUrl, 
-                    qType: 'choice', 
-                    answer: 'A' 
-                }]);
-                setCroppingImage(null);
-                if (cropperRef.current) cropperRef.current.destroy();
+                if (isProcessingCrop) return;
+                setIsProcessingCrop(true);
+                
+                setTimeout(() => {
+                    try {
+                        const canvas = cropperRef.current.getCroppedCanvas({ maxWidth: 800, maxHeight: 800 });
+                        const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.6);
+                        setPreviewList(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), dataUrl: croppedDataUrl, qType: 'choice', answer: 'A' }]);
+                        
+                        if (cropperRef.current) {
+                            cropperRef.current.destroy();
+                            cropperRef.current = null;
+                        }
+                        setCroppingImage(null);
+                    } catch (err) {
+                        setAiMessage({ text: "圖片處理失敗，請換一張試試。", status: 'wrong', loading: false });
+                        setTimeout(() => setAiMessage(null), 2500);
+                        setCroppingImage(null);
+                    } finally {
+                        setIsProcessingCrop(false);
+                    }
+                }, 100);
             };
 
+            // V12.9: 沉浸式明確的上傳回饋
             const addTask = async (e) => {
                 e.preventDefault();
                 if (!newTask.trim() && previewList.length === 0) return;
+                
                 setIsSubmitting(true);
+                setAiMessage({ text: "正在將棋譜上傳至雲端，請稍候...", status: 'info', loading: true });
+
+                const dateToUse = newDate || new Date().toISOString().split('T')[0];
+                const catToUse = newCategory || '其他';
+
                 try {
                     if (inputMode === 'photo') {
-                        await Promise.all(previewList.map(item => addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { type: 'photo', questionType: item.qType, content: newTask, date: newDate, category: newCategory, imageUrl: item.dataUrl, correctAnswer: item.answer, note: "", completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), similarCount: 0 })));
-                        setPreviewList([]);
+                        await Promise.all(previewList.map(item => addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { 
+                            type: 'photo', questionType: item.qType || 'choice', 
+                            content: newTask || '', date: dateToUse, category: catToUse, 
+                            imageUrl: item.dataUrl || '', correctAnswer: item.answer || '', 
+                            note: "", completed: false, wasIncorrect: false, status: 'active', 
+                            createdAt: serverTimestamp(), similarCount: 0 
+                        })));
                     } else {
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { type: 'text', content: newTask, date: newDate, category: newCategory, completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), similarCount: 0 });
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { 
+                            type: 'text', content: newTask || '', date: dateToUse, category: catToUse, 
+                            completed: false, wasIncorrect: false, status: 'active', 
+                            createdAt: serverTimestamp(), similarCount: 0 
+                        });
                     }
+                    
+                    setPreviewList([]);
                     setNewTask("");
-                    setAiMessage({ text: "佈局成功！題目已上傳。", status: 'correct' });
-                    setTimeout(() => { setAiMessage(null); document.getElementById('battle-section')?.scrollIntoView({ behavior: 'smooth' }); }, 1000);
-                } catch (e) { setAiMessage({ text: "落子失敗。", status: 'wrong' }); setTimeout(() => setAiMessage(null), 2500); } finally { setIsSubmitting(false); }
+                    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+
+                    setAiMessage({ text: "佈局成功！對局已出現於戰場。", status: 'correct', loading: false });
+                    setTimeout(() => { 
+                        setAiMessage(null); 
+                        setViewMode('active');
+                        document.getElementById('battle-section')?.scrollIntoView({ behavior: 'smooth' }); 
+                    }, 1500);
+                } catch (e) {
+                    setAiMessage({ text: "連線不穩，落子失敗，請重試。", status: 'wrong', loading: false });
+                    setTimeout(() => setAiMessage(null), 3000);
+                } finally {
+                    setIsSubmitting(false);
+                }
             };
 
             const submitAnswer = async (task, inputAnswer) => {
                 if (!inputAnswer.trim()) return;
-                if (inputAnswer.trim().toUpperCase() === task.correctAnswer.trim().toUpperCase()) {
-                    setAiMessage({ text: "精彩的落子！擊破成功！", status: 'correct' });
+                const correctAns = (task.correctAnswer || "").trim().toUpperCase();
+                
+                if (inputAnswer.trim().toUpperCase() === correctAns) {
+                    setAiMessage({ text: "妙手！突圍成功！", status: 'correct', loading: false });
                     setTimeout(async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { completed: true, status: 'archived', completedAt: serverTimestamp() }); setAiMessage(null); }, 1500); 
                 } else {
-                    setAiMessage({ text: "此步不通，請再三思索！", status: 'wrong' });
+                    setAiMessage({ text: "棋路不通，請再深思！", status: 'wrong', loading: false });
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { wasIncorrect: true, status: 'needsReview' });
                     setTimeout(() => setAiMessage(null), 1500);
                 }
@@ -359,9 +388,12 @@
                 setIsDeleting(true);
                 try {
                     await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget));
-                    setAiMessage({ text: "棋譜更新，此局已移除。", status: 'correct' });
+                    setAiMessage({ text: "此局已從棋譜中抹除。", status: 'correct', loading: false });
                     setTimeout(() => setAiMessage(null), 1000);
-                } catch (e) { setAiMessage({ text: "移除失敗。", status: 'wrong' }); setTimeout(() => setAiMessage(null), 2000); } finally { setIsDeleting(false); setDeleteTarget(null); }
+                } catch (e) { 
+                    setAiMessage({ text: "移除失敗。", status: 'wrong', loading: false }); 
+                    setTimeout(() => setAiMessage(null), 2000); 
+                } finally { setIsDeleting(false); setDeleteTarget(null); }
             };
 
             if (isLoading && !user) return <div className="loading-overlay"><div className="spinner"></div></div>;
@@ -370,49 +402,44 @@
                 <div className="min-h-screen relative pb-20">
                     <div className="go-board-overlay"></div>
 
-                    {/* 圖片裁剪編輯器 Modal */}
                     {croppingImage && (
                         <div className="fixed inset-0 z-[3000] bg-black flex flex-col items-center justify-center p-4">
-                            <div className="w-full max-w-2xl h-[70vh] relative mb-6">
-                                <img ref={cropperImgRef} src={croppingImage} onLoad={startCropper} className="max-w-full hidden" />
+                            <div className="w-full max-w-2xl h-[70vh] relative mb-4">
+                                <img ref={cropperImgRef} src={croppingImage} onLoad={() => {
+                                    cropperRef.current = new Cropper(cropperImgRef.current, { aspectRatio: NaN, viewMode: 1, autoCropArea: 1, dragMode: 'move', background: false });
+                                }} className="max-w-full hidden" />
                             </div>
-                            <div className="w-full max-w-md bg-white/10 backdrop-blur-xl p-6 rounded-3xl flex flex-col gap-4">
-                                <div className="flex justify-around items-center text-white">
-                                    <button onClick={() => cropperRef.current.rotate(-90)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100">
-                                        <Icon name="rotate-ccw" size={28} />
-                                        <span className="text-[10px]">左轉</span>
-                                    </button>
-                                    <button onClick={() => cropperRef.current.rotate(90)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100">
-                                        <Icon name="rotate-cw" size={28} />
-                                        <span className="text-[10px]">右轉</span>
-                                    </button>
-                                    <button onClick={() => cropperRef.current.zoom(0.1)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100">
-                                        <Icon name="zoom-in" size={28} />
-                                        <span className="text-[10px]">放大</span>
-                                    </button>
-                                    <button onClick={() => cropperRef.current.zoom(-0.1)} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100">
-                                        <Icon name="zoom-out" size={28} />
-                                        <span className="text-[10px]">縮小</span>
-                                    </button>
-                                    <button onClick={() => cropperRef.current.reset()} className="flex flex-col items-center gap-1 opacity-80 hover:opacity-100 text-amber-400">
-                                        <Icon name="refresh-ccw" size={28} />
-                                        <span className="text-[10px]">重置</span>
-                                    </button>
+                            <div className="w-full max-w-md bg-stone-900/80 backdrop-blur-xl p-4 rounded-3xl flex flex-col gap-4 border border-white/10 shadow-2xl">
+                                <div className="flex justify-around text-white/90">
+                                    <button onClick={() => cropperRef.current?.rotate(-90)} className="flex flex-col items-center gap-1"><Icon name="rotate-ccw" size={24} /><span className="text-[10px]">左轉</span></button>
+                                    <button onClick={() => cropperRef.current?.rotate(90)} className="flex flex-col items-center gap-1"><Icon name="rotate-cw" size={24} /><span className="text-[10px]">右轉</span></button>
+                                    <button onClick={() => cropperRef.current?.zoom(0.1)} className="flex flex-col items-center gap-1"><Icon name="zoom-in" size={24} /><span className="text-[10px]">放大</span></button>
+                                    <button onClick={() => cropperRef.current?.zoom(-0.1)} className="flex flex-col items-center gap-1"><Icon name="zoom-out" size={24} /><span className="text-[10px]">縮小</span></button>
                                 </div>
-                                <div className="flex gap-4">
-                                    <button onClick={() => setCroppingImage(null)} className="flex-1 py-4 bg-white/10 text-white rounded-2xl font-bold">取消</button>
-                                    <button onClick={finalizeCrop} className="flex-2 flex-[2] py-4 bg-amber-500 text-black rounded-2xl font-black shadow-lg">確認裁剪範圍</button>
+                                <div className="flex gap-3">
+                                    <button disabled={isProcessingCrop} onClick={() => setCroppingImage(null)} className="flex-1 py-4 bg-white/10 text-white rounded-2xl font-bold">取消</button>
+                                    <button disabled={isProcessingCrop} onClick={finalizeCrop} className="flex-2 flex-[2] py-4 bg-amber-500 text-black rounded-2xl font-black shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2">
+                                        {isProcessingCrop ? <Icon name="loader-2" size={18} className="btn-spinner" /> : null}
+                                        {isProcessingCrop ? "處理中..." : "確認範圍"}
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     )}
                     
+                    {/* V12.9 全螢幕狀態鎖定提示 */}
                     {aiMessage && (
-                        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm animate-in fade-in">
-                            <div className="glass-card celebrate-pop p-10 rounded-3xl shadow-2xl max-w-sm text-center border-t-8 border-amber-500 scale-110">
-                                <Icon name={aiMessage.status === 'correct' ? "award" : "help-circle"} size={80} className={`${aiMessage.status === 'correct' ? 'text-amber-500' : 'text-red-500'} mx-auto mb-6`} />
-                                <h3 className="text-3xl font-black mb-3 text-stone-800 tracking-tight">{aiMessage.status === 'correct' ? "成功破敵！" : "尚未突圍"}</h3>
-                                <p className="text-xl text-stone-600 font-bold italic px-2 leading-relaxed">{aiMessage.text}</p>
+                        <div className="fixed inset-0 z-[5000] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-in fade-in">
+                            <div className={`glass-card p-10 rounded-3xl shadow-2xl max-w-sm w-full text-center border-t-8 scale-110 ${aiMessage.status === 'correct' ? 'border-green-500' : aiMessage.status === 'wrong' ? 'border-red-500' : 'border-amber-500'}`}>
+                                {aiMessage.loading ? (
+                                    <div className="mx-auto mb-6 flex justify-center text-amber-500"><Icon name="loader-2" size={64} className="btn-spinner" /></div>
+                                ) : (
+                                    <div className="mx-auto mb-6 flex justify-center"><Icon name={aiMessage.status === 'correct' ? "check-circle" : "alert-circle"} size={64} className={aiMessage.status === 'correct' ? 'text-green-500' : 'text-red-500'} /></div>
+                                )}
+                                <h3 className="text-2xl font-black mb-4 text-stone-800 tracking-tight">
+                                    {aiMessage.loading ? "靈力運轉中..." : (aiMessage.status === 'correct' ? "行動成功！" : "稍遇阻礙")}
+                                </h3>
+                                <p className="text-lg text-stone-600 font-bold leading-relaxed">{aiMessage.text}</p>
                             </div>
                         </div>
                     )}
@@ -421,12 +448,11 @@
                         <div className="fixed inset-0 z-[1050] flex items-center justify-center p-6 bg-stone-900/90 backdrop-blur-md">
                             <div className="bg-white p-8 rounded-3xl shadow-2xl border-4 border-stone-800 w-full max-w-xs text-center animate-in zoom-in-95">
                                 <Icon name="trash-2" size={40} className="mx-auto mb-4 text-red-600" />
-                                <h3 className="text-xl font-black mb-4 text-stone-800 tracking-tight">確定要移除此棋步嗎？</h3>
+                                <h3 className="text-xl font-black mb-4 text-stone-800">移除此棋步？</h3>
                                 <div className="flex gap-3 mt-6">
-                                    <button disabled={isDeleting} onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-stone-100 text-stone-600 rounded-xl font-bold active:scale-95 transition-transform">取消</button>
+                                    <button disabled={isDeleting} onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-stone-100 text-stone-600 rounded-xl font-bold">取消</button>
                                     <button disabled={isDeleting} onClick={confirmDelete} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold shadow-lg active:scale-95 flex items-center justify-center gap-2">
-                                        {isDeleting ? <Icon name="loader-2" size={16} className="btn-spinner" /> : null}
-                                        {isDeleting ? "正在移除..." : "確認刪除"}
+                                        {isDeleting ? <Icon name="loader-2" size={16} className="btn-spinner" /> : null}確認刪除
                                     </button>
                                 </div>
                             </div>
@@ -440,7 +466,7 @@
                     )}
 
                     <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
-                        <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200">VER 12.4</div>
+                        <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200">VER 12.9</div>
                         <div className="max-w-4xl mx-auto">
                             <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg ring-4 ring-amber-500/20">
                                 <Icon name="flame" size={24} /> <span>SAI ‧ 應試覺醒</span>
@@ -456,31 +482,26 @@
                         <div className="grid lg:grid-cols-12 gap-8">
                             <div className="lg:col-span-4">
                                 <div className="glass-card p-6 rounded-3xl border-2 border-stone-800 shadow-2xl sticky top-4">
-                                    <h2 className="font-black text-xl mb-4 flex items-center gap-2 text-stone-800">
-                                        <div className="w-5 h-5 rounded-full bg-black"></div> 佈局策略 (媽媽)
-                                    </h2>
+                                    <h2 className="font-black text-xl mb-4 flex items-center gap-2 text-stone-800"><div className="w-5 h-5 rounded-full bg-black"></div> 佈局策略 (媽媽)</h2>
                                     <div className="flex bg-stone-100 rounded-2xl p-1 mb-6 shadow-inner">
                                         <button onClick={() => setInputMode("text")} className={`flex-1 py-3 text-sm font-black rounded-xl transition-all ${inputMode === "text" ? 'bg-white text-indigo-700 shadow-md' : 'text-stone-400'}`}>文字任務</button>
-                                        <button onClick={() => setInputMode("photo")} className={`flex-1 py-3 text-sm font-black rounded-xl transition-all ${inputMode === "photo" ? 'bg-white text-indigo-700 shadow-md' : 'text-stone-400'}`}>多圖佈陣</button>
+                                        <button onClick={() => setInputMode("photo")} className={`flex-1 py-3 text-sm font-black rounded-xl transition-all ${inputMode === "photo" ? 'bg-white text-indigo-700 shadow-md' : 'text-stone-400'}`}>拍照佈陣</button>
                                     </div>
                                     <form onSubmit={addTask} className="space-y-4">
                                         <div className="grid grid-cols-2 gap-3">
-                                            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm text-black shadow-inner" />
-                                            <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-black text-sm outline-none text-black">
-                                                {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                                            </select>
+                                            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm text-black" />
+                                            <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-black text-sm outline-none text-black">{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
                                         </div>
                                         {inputMode === 'photo' ? (
                                             <div className="space-y-4">
                                                 <div onClick={() => !isSubmitting && fileInputRef.current.click()} className="p-6 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center cursor-pointer bg-indigo-100/30 hover:bg-white transition-colors">
-                                                    <Icon name="camera" size={32} className="text-indigo-400 mb-1" />
-                                                    <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">點此拍照並裁剪</span>
+                                                    <Icon name="camera" size={32} className="text-indigo-400 mb-1" /><span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">拍照並裁剪範圍</span>
                                                     <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                                                 </div>
                                                 <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scroll">
                                                     {previewList.map(item => (
                                                         <div key={item.id} className="p-3 bg-white/50 rounded-2xl border-2 border-stone-200 relative animate-in slide-in-from-right">
-                                                            <button type="button" onClick={() => setPreviewList(prev => prev.filter(i => i.id !== item.id))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg z-20 hover:scale-110 active:scale-95 transition-all"><Icon name="x" size={14} /></button>
+                                                            <button type="button" onClick={() => setPreviewList(prev => prev.filter(i => i.id !== item.id))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg z-20"><Icon name="x" size={14} /></button>
                                                             <div className="flex gap-3">
                                                                 <img src={item.dataUrl} className="w-16 h-16 object-cover rounded-lg border cursor-zoom-in shadow-sm" onClick={() => setSelectedImg(item.dataUrl)} />
                                                                 <div className="flex-1 space-y-2">
@@ -488,13 +509,7 @@
                                                                         <button type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: 'choice'} : i))} className={`flex-1 py-1 text-[9px] font-black rounded border ${item.qType === 'choice' ? 'bg-indigo-600 text-white' : 'bg-white text-stone-400'}`}>選擇</button>
                                                                         <button type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: 'open'} : i))} className={`flex-1 py-1 text-[9px] font-black rounded border ${item.qType === 'open' ? 'bg-indigo-600 text-white' : 'bg-white text-stone-400'}`}>填空</button>
                                                                     </div>
-                                                                    {item.qType === 'choice' ? (
-                                                                        <div className="flex justify-between">
-                                                                            {["A", "B", "C", "D"].map(c => <button key={c} type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: c} : i))} className={`w-6 h-6 rounded-full text-[9px] font-black border transition-all ${item.answer === c ? 'bg-black text-white' : 'bg-white'}`}>{c}</button>)}
-                                                                        </div>
-                                                                    ) : (
-                                                                        <input type="text" value={item.answer} onChange={e => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: e.target.value} : i))} className="w-full p-1 border rounded text-[9px] font-bold text-black" />
-                                                                    )}
+                                                                    {item.qType === 'choice' ? (<div className="flex justify-between">{["A", "B", "C", "D"].map(c => <button key={c} type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: c} : i))} className={`w-6 h-6 rounded-full text-[9px] font-black border transition-all ${item.answer === c ? 'bg-black text-white' : 'bg-white'}`}>{c}</button>)}</div>) : (<input type="text" value={item.answer} onChange={e => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: e.target.value} : i))} className="w-full p-1 border rounded text-[9px] font-bold text-black" />)}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -502,10 +517,10 @@
                                                 </div>
                                             </div>
                                         ) : (
-                                            <textarea placeholder="例如：讀完國文第一冊..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="4" className="w-full p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm outline-none text-black shadow-inner" />
+                                            <textarea placeholder="例如：讀完國文第一冊複習..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="4" className="w-full p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm outline-none text-black shadow-inner" />
                                         )}
-                                        <button type="submit" disabled={isSubmitting || (inputMode === 'photo' ? previewList.length === 0 : !newTask.trim())} className={`w-full py-4 rounded-2xl font-black text-lg shadow-xl transition-all flex items-center justify-center gap-3 ${isSubmitting ? 'bg-stone-400' : 'bg-stone-900 text-white hover:bg-black active:scale-95'}`}>
-                                            {isSubmitting ? <><Icon name="loader-2" size={24} className="btn-spinner" />正在上傳...</> : "確認佈局落子"}
+                                        <button type="submit" disabled={isSubmitting || (inputMode === 'photo' ? previewList.length === 0 : !newTask.trim())} className={`w-full py-4 rounded-2xl font-black text-lg shadow-xl transition-all flex items-center justify-center gap-3 bg-stone-900 text-white hover:bg-black active:scale-95`}>
+                                            確認佈局落子
                                         </button>
                                     </form>
                                 </div>
@@ -513,39 +528,20 @@
 
                             <div className="lg:col-span-8" id="battle-section">
                                 <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-6 gap-4">
-                                    <h2 className="font-black text-xl flex items-center gap-2 text-stone-800">
-                                        <div className="w-5 h-5 rounded-full bg-white border-2 border-stone-800 shadow-md"></div> 實戰對局區域
-                                    </h2>
-                                    <div className="flex bg-stone-200/60 p-1 rounded-2xl border border-stone-200 shadow-inner scale-90 sm:scale-100 origin-left">
-                                        <button onClick={() => setViewMode('active')} className={`px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center gap-2 ${viewMode === 'active' ? 'bg-stone-900 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}>
-                                            <Icon name="swords" size={14} /> 待挑戰 ({counts.active})
-                                        </button>
-                                        <button onClick={() => setViewMode('future')} className={`px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center gap-2 ${viewMode === 'future' ? 'bg-indigo-700 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}>
-                                            <Icon name="calendar" size={14} /> 預讀計畫 ({counts.future})
-                                        </button>
-                                        <button onClick={() => setViewMode('history')} className={`px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center gap-2 ${viewMode === 'history' ? 'bg-amber-600 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}>
-                                            <Icon name="award" size={14} /> 戰績榜 ({counts.history})
-                                        </button>
+                                    <h2 className="font-black text-xl flex items-center gap-2 text-stone-800"><div className="w-5 h-5 rounded-full bg-white border-2 border-stone-800 shadow-md"></div> 實戰對局區域</h2>
+                                    <div className="flex bg-stone-200/60 p-1 rounded-2xl border border-stone-200 shadow-inner scale-90 sm:scale-100 origin-left overflow-x-auto">
+                                        <button onClick={() => setViewMode('active')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center gap-2 ${viewMode === 'active' ? 'bg-stone-900 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}><Icon name="swords" size={14} /> 待挑戰 ({counts.active})</button>
+                                        <button onClick={() => setViewMode('future')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center gap-2 ${viewMode === 'future' ? 'bg-indigo-700 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}><Icon name="calendar" size={14} /> 預讀計畫 ({counts.future})</button>
+                                        <button onClick={() => setViewMode('history')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center gap-2 ${viewMode === 'history' ? 'bg-amber-600 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}><Icon name="award" size={14} /> 戰績榜 ({counts.history})</button>
                                     </div>
                                 </div>
                                 <div className="grid md:grid-cols-2 gap-6 min-h-[400px]">
                                     {listToDisplay.map(task => (
-                                        <TaskCard 
-                                            key={task.id} task={task} mode={viewMode} isGenerating={generatingId === task.id} genStatus={generatingStatus}
-                                            onDelete={() => setDeleteTarget(task.id)} onSubmit={ans => submitAnswer(task, ans)} onTextDone={() => submitAnswer(task, "TRUE")}
-                                            onGenerateSimilar={() => generateSimilarTask(task)} openImg={setSelectedImg} onUpdateNote={note => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { note })}
-                                        />
+                                        <TaskCard key={task.id} task={task} mode={viewMode} isGenerating={generatingId === task.id} genStatus={generatingStatus} onDelete={() => setDeleteTarget(task.id)} onSubmit={ans => submitAnswer(task, ans)} onTextDone={() => submitAnswer(task, "TRUE")} onGenerateSimilar={() => generateSimilarTask(task)} openImg={setSelectedImg} onUpdateNote={note => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { note })} />
                                     ))}
-                                    {listToDisplay.length === 0 && <div className="md:col-span-2 text-center py-24 border-4 border-dashed border-stone-300 rounded-3xl font-black text-stone-400 italic px-10">{isLoading ? "正在讀取..." : "目前清單清空，等候落子。"}</div>}
+                                    {listToDisplay.length === 0 && <div className="md:col-span-2 text-center py-24 border-4 border-dashed border-stone-300 rounded-3xl font-black text-stone-400 italic px-10">{isLoading ? "正在讀取..." : "棋盤清空，等候落子。"}</div>}
                                 </div>
-
-                                {viewMode === 'history' && counts.history > historyDisplayLimit && (
-                                    <div className="mt-8 text-center animate-in slide-in-from-bottom">
-                                        <button onClick={() => setHistoryDisplayLimit(prev => prev + 10)} className="bg-white border-2 border-stone-800 text-stone-800 px-8 py-3 rounded-2xl font-black text-sm shadow-md hover:bg-stone-50 active:scale-95 transition-all">
-                                            <Icon name="chevrons-down" size={18} className="inline mr-2" /> 檢索更多戰績 (展示 {historyDisplayLimit} / {counts.history} 題)
-                                        </button>
-                                    </div>
-                                )}
+                                {viewMode === 'history' && counts.history > historyDisplayLimit && (<div className="mt-8 text-center animate-in slide-in-from-bottom"><button onClick={() => setHistoryDisplayLimit(prev => prev + 10)} className="bg-white border-2 border-stone-800 text-stone-800 px-8 py-3 rounded-2xl font-black text-sm shadow-md hover:bg-stone-50 active:scale-95 transition-all"><Icon name="chevrons-down" size={18} className="inline mr-2" /> 檢索更多戰績 (展示 {historyDisplayLimit} / {counts.history} 題)</button></div>)}
                             </div>
                         </div>
                     </main>
@@ -555,77 +551,28 @@
 
         const TaskCard = ({ task, onDelete, onSubmit, onTextDone, onGenerateSimilar, openImg, mode, onUpdateNote, isGenerating, genStatus }) => {
             const [myInput, setMyInput] = useState("");
-            const isReview = task.wasIncorrect && task.status === 'needsReview' && mode === 'active';
             
-            const isAiGen = task.content && task.content.startsWith('【AI 智能挑戰】');
-            const displayContent = isAiGen ? task.content.replace('【AI 智能挑戰】\n', '') : task.content;
+            // V12.9 防爆保護：如果欄位有缺，給予預設空值
+            const contentStr = task.content || "";
+            const isReview = task.wasIncorrect && task.status === 'needsReview' && mode === 'active';
+            const isAiGen = contentStr.startsWith('【AI 智能挑戰】');
+            const displayContent = isAiGen ? contentStr.replace('【AI 智能挑戰】\n', '') : contentStr;
 
             return (
-                <div className={`flex flex-col rounded-3xl border-2 transition-all duration-300 glass-card shadow-lg group overflow-hidden border-stone-800 category-${task.category} ${isReview ? 'ring-4 ring-amber-400 animate-pulse' : ''} ${mode === 'history' ? 'opacity-85 grayscale-[0.05]' : ''}`}>
+                <div key={task.id} className={`flex flex-col rounded-3xl border-2 transition-all duration-300 glass-card shadow-lg group overflow-hidden border-stone-800 category-${task.category || '其他'} ${isReview ? 'ring-4 ring-amber-400 animate-pulse' : ''} ${mode === 'history' ? 'opacity-85 grayscale-[0.05]' : ''}`}>
                     <div className="p-3 flex items-center justify-between border-b bg-stone-50/50">
-                        <div className="flex items-center gap-2">
-                            <span className="bg-stone-800 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">#{task.globalIndex || '?'}</span>
-                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black tag-${task.category}`}>{task.category}</span>
-                            {mode === 'history' && (
-                                <button onClick={e => { e.stopPropagation(); onGenerateSimilar(); }} disabled={isGenerating} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border transition-all ${isGenerating ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 shadow-sm'}`}>
-                                    {isGenerating ? <Icon name="loader-2" size={10} className="btn-spinner" /> : <Icon name="sparkles" size={10} />} {isGenerating ? (genStatus === 'gemini' ? '思考中' : '繪圖中') : `AI題(${task.similarCount || 0})`}
-                                </button>
-                            )}
-                            <span className={`text-[10px] font-black tracking-tighter uppercase ${mode === 'future' ? 'text-indigo-600' : 'text-stone-500'}`}>{task.date}</span>
-                        </div>
-                        <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-stone-300 hover:text-red-500 p-1 transition-all active:scale-90"><Icon name="trash-2" size={16} /></button>
+                        <div className="flex items-center gap-2"><span className="bg-stone-800 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">#{task.globalIndex || '?'}</span><span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black tag-${task.category || '其他'}`}>{task.category || '未分類'}</span>{mode === 'history' && (<button onClick={e => { e.stopPropagation(); onGenerateSimilar(); }} disabled={isGenerating} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border transition-all ${isGenerating ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95 shadow-sm'}`}>{isGenerating ? <Icon name="loader-2" size={10} className="btn-spinner" /> : <Icon name="sparkles" size={10} />} {isGenerating ? (genStatus === 'gemini' ? '思考中' : '繪圖中') : `AI題(${task.similarCount || 0})`}</button>)}<span className={`text-[10px] font-black tracking-tighter uppercase ${mode === 'future' ? 'text-indigo-600' : 'text-stone-500'}`}>{task.date || '未知日期'}</span></div>
+                        <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-stone-400 hover:text-red-500 p-1 transition-all active:scale-90"><Icon name="trash-2" size={16} /></button>
                     </div>
                     <div className="p-5 flex-1 flex flex-col">
                         <div className="flex-1">
-                            <div className="flex items-start gap-3 mb-4">
-                                {task.type === 'text' && mode === 'active' && <button onClick={onTextDone} className="mt-1 text-stone-300 hover:text-green-500 active:scale-90 transition-transform flex-shrink-0"><Icon name="circle" size={32} /></button>}
-                                <div className="flex-1">
-                                    {isAiGen && (
-                                        <div className="ai-label-subtle">
-                                            AI 智能佈陣
-                                        </div>
-                                    )}
-                                    <div className="formal-exam-container">
-                                        <div className={`exam-question-text ${mode === 'history' ? 'line-through text-stone-400 opacity-60' : ''}`}>
-                                            {displayContent || '解出下列對局：'}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            {task.imageUrl && (
-                                <div className="mb-6 cursor-zoom-in relative group/img rounded-2xl overflow-hidden border-2 border-stone-200 shadow-md p-1 bg-white" onClick={() => openImg(task.imageUrl)}>
-                                    <img src={task.imageUrl} className="w-full h-auto object-contain rounded-xl group-hover:brightness-95 transition-all max-h-80" />
-                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity bg-black/10"><Icon name="maximize" size={32} className="text-white drop-shadow-lg" /></div>
-                                </div>
-                            )}
+                            <div className="flex items-start gap-3 mb-4">{task.type === 'text' && mode === 'active' && <button onClick={onTextDone} className="mt-1 text-stone-300 hover:text-green-500 active:scale-90 transition-transform flex-shrink-0"><Icon name="circle" size={32} /></button>}<div className="flex-1">{isAiGen && (<div className="ai-label-subtle">AI 智能佈陣</div>)}<div className="formal-exam-container"><div className={`exam-question-text ${mode === 'history' ? 'line-through text-stone-400 opacity-60' : ''}`}>{displayContent || '解出下列對局：'}</div></div></div></div>
+                            {task.imageUrl && (<div className="mb-6 cursor-zoom-in relative group/img rounded-2xl overflow-hidden border-2 border-stone-200 shadow-md p-1 bg-white" onClick={() => openImg(task.imageUrl)}><img src={task.imageUrl} className="w-full h-auto object-contain rounded-xl group-hover:brightness-95 transition-all max-h-80" /><div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity bg-black/10"><Icon name="maximize" size={32} className="text-white drop-shadow-lg" /></div></div>)}
                         </div>
-                        {task.type === 'photo' && mode === 'active' && (
-                            <div className="mt-auto pt-4 bg-stone-100/50 p-4 rounded-2xl border border-stone-200 shadow-inner">
-                                <p className="text-[10px] font-black text-stone-400 mb-3 uppercase tracking-tighter">提交解答</p>
-                                {task.questionType === 'choice' ? (
-                                    <div className="grid grid-cols-4 gap-2">
-                                        {["A", "B", "C", "D"].map(c => <button key={c} onClick={() => onSubmit(c)} className="aspect-square bg-white border-2 border-stone-300 rounded-xl font-black text-lg hover:bg-stone-900 hover:text-white transition-all active:scale-90 shadow-sm">{c}</button>)}
-                                    </div>
-                                ) : (
-                                    <div className="flex gap-2">
-                                        <input type="text" value={myInput} onChange={e => setMyInput(e.target.value)} placeholder="填寫答案..." className="flex-1 p-2 rounded-xl border-2 border-stone-200 font-bold text-sm bg-white text-black outline-none focus:border-stone-900" onKeyDown={e => e.key === 'Enter' && onSubmit(myInput)} />
-                                        <button onClick={() => onSubmit(myInput)} className="bg-stone-800 text-white px-4 rounded-xl font-black text-xs active:scale-95 transition-all shadow-md">提交</button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        {(mode === 'future' || mode === 'history') && task.type === 'photo' && (
-                            <div className={`mt-auto p-4 rounded-2xl border flex items-center justify-between shadow-inner ${mode === 'future' ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}>
-                                <span className="text-xs font-black text-stone-500 uppercase">{mode === 'future' ? '預設' : '擊破點'}:</span> <span className="text-xl font-black text-stone-900 drop-shadow-sm">{task.correctAnswer}</span>
-                            </div>
-                        )}
+                        {task.type === 'photo' && mode === 'active' && (<div className="mt-auto pt-4 bg-stone-100/50 p-4 rounded-2xl border border-stone-200 shadow-inner"><p className="text-[10px] font-black text-stone-400 mb-3 uppercase tracking-tighter">提交解答</p>{task.questionType === 'choice' ? (<div className="grid grid-cols-4 gap-2">{["A", "B", "C", "D"].map(c => <button key={c} onClick={() => onSubmit(c)} className="aspect-square bg-white border-2 border-stone-300 rounded-xl font-black text-lg hover:bg-stone-900 hover:text-white transition-all active:scale-90 shadow-sm">{c}</button>)}</div>) : (<div className="flex gap-2"><input type="text" value={myInput} onChange={e => setMyInput(e.target.value)} placeholder="填寫答案..." className="flex-1 p-2 rounded-xl border-2 border-stone-200 font-bold text-sm bg-white text-black outline-none focus:border-stone-900 shadow-inner" onKeyDown={e => e.key === 'Enter' && onSubmit(myInput)} /><button onClick={() => onSubmit(myInput)} className="bg-stone-800 text-white px-4 rounded-xl font-black text-xs active:scale-95 transition-all shadow-md">提交</button></div>)}</div>)}
+                        {(mode === 'future' || mode === 'history') && task.type === 'photo' && (<div className={`mt-auto p-4 rounded-2xl border flex items-center justify-between shadow-inner ${mode === 'future' ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}><span className="text-xs font-black text-stone-500 uppercase">{mode === 'future' ? '預設' : '擊破點'}:</span> <span className="text-xl font-black text-stone-900 drop-shadow-sm">{task.correctAnswer || '無'}</span></div>)}
                     </div>
-                    <div className="px-5 pb-5 mt-2">
-                        <div className="flex items-center gap-3 border-t-2 border-stone-100 pt-3">
-                            <Icon name="edit-3" size={14} className="text-stone-300" />
-                            <input type="text" placeholder="補充心得筆記..." defaultValue={task.note} onBlur={e => onUpdateNote(e.target.value)} className="w-full bg-transparent outline-none italic font-black text-sm text-stone-500 focus:text-amber-600 transition-colors" />
-                        </div>
-                    </div>
+                    <div className="px-5 pb-5 mt-2"><div className="flex items-center gap-3 border-t-2 border-stone-100 pt-3"><Icon name="edit-3" size={14} className="text-stone-300" /><input type="text" placeholder="補充心得筆記..." defaultValue={task.note || ''} onBlur={e => onUpdateNote(e.target.value)} className="w-full bg-transparent outline-none italic font-black text-sm text-stone-500 focus:text-amber-600 transition-colors" /></div></div>
                 </div>
             );
         };
