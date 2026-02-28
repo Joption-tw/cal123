@@ -40,7 +40,7 @@
         .celebrate-pop { animation: pop-in 0.3s cubic-bezier(0.26, 0.53, 0.74, 1.48); }
         @keyframes pop-in { 0% { transform: scale(0.85); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     </style>
- head>
+</head>
 <body class="vibrant-bg">
     <div id="root"></div>
 
@@ -65,7 +65,7 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         const appId = "exam-8ae8d";
-        const apiKey = ""; // 由執行環境動態提供
+        const apiKey = ""; // API Key 
 
         const SUBJECTS = ["國文", "英文", "數學", "自然", "社會", "其他"];
 
@@ -94,6 +94,7 @@
             const [timeLeft, setTimeLeft] = useState({ d: 0, h: 0, m: 0, s: 0 });
             const [isLoading, setIsLoading] = useState(true);
             const [isSubmitting, setIsSubmitting] = useState(false);
+            const [generatingStatus, setGeneratingStatus] = useState(null); // null, 'gemini', 'imagen'
             const [generatingId, setGeneratingId] = useState(null); 
             const [inputMode, setInputMode] = useState("text"); 
             const [viewMode, setViewMode] = useState("active"); 
@@ -137,6 +138,25 @@
                 }
             };
 
+            // 圖像生成函數
+            const callImagen = async (prompt) => {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+                const payload = { instances: [{ prompt: `${prompt}. Clean, scientific diagram style for educational purpose, black and white sketch or simple color, no text.` }], parameters: { sampleCount: 1 } };
+                
+                for (let i = 0; i <= 3; i++) {
+                    try {
+                        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                        if (!response.ok) throw new Error("Imagen API Failed");
+                        const result = await response.json();
+                        return `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+                    } catch (err) {
+                        if (i === 3) return null;
+                        await new Promise(r => setTimeout(r, 2000));
+                    }
+                }
+                return null;
+            };
+
             const generateAiEncouragement = async (subject, taskContent) => {
                 const sys = "你是一位熱血的圍棋導師佐為。稟軒剛完成複習。請生成一句不超過15字的熱血鼓勵語，肯定他的神之一手。";
                 const user = `科目：${subject}，任務：${taskContent || '日常複習'}。`;
@@ -145,30 +165,45 @@
 
             const generateSimilarTask = async (task) => {
                 setGeneratingId(task.id);
+                setGeneratingStatus('gemini');
                 try {
                     const sys = `你是一位專業國中會考名師。請基於原題目內容，生成一題「觀念相同但內容不同」的類似練習題。
-                    重要規則：
+                    輸出規則：
                     1. 必須輸出純 JSON 格式。
-                    2. **絕對禁止提及「如附圖」、「如圖所示」、「參照下圖」等圖片參考文字**，因為生成的題目不會附帶圖片。
-                    3. 你必須透過精確的「文字描述」來構建情境。例如：若原題是位移圖，請改寫為「小明沿直線向東走50公尺，再折返向西走30公尺...」。
-                    4. 如果是理化或數學題，請將圖表資訊轉化為詳細的文字參數。`;
+                    2. 如果題目適合有視覺輔助（如位移圖、力學、幾何、化學裝置），請在 content 中提及「根據下圖」。
+                    3. 在 imagePrompt 欄位提供 100 字內的英文繪圖描述，描述應為：'A simple scientific diagram showing [題目情境], minimalist, clear lines, educational sketch style'。`;
 
-                    const schema = { type: "OBJECT", properties: { content: { type: "STRING" }, qType: { type: "STRING", enum: ["choice", "open"] }, answer: { type: "STRING" } }, required: ["content", "qType", "answer"] };
-                    const userP = `原題目科目：${task.category}。內容描述：${task.content}。正確答案：${task.correctAnswer || '無'}。若是選擇題，請在 content 中包含 A, B, C, D 選項。請確保題目不依賴圖片。`;
+                    const schema = { 
+                        type: "OBJECT", 
+                        properties: { 
+                            content: { type: "STRING" }, 
+                            qType: { type: "STRING", enum: ["choice", "open"] }, 
+                            answer: { type: "STRING" },
+                            imagePrompt: { type: "STRING" }
+                        }, 
+                        required: ["content", "qType", "answer", "imagePrompt"] 
+                    };
+                    
+                    const userP = `原題目科目：${task.category}。內容描述：${task.content}。正確答案：${task.correctAnswer || '無'}。請生成類似挑戰。`;
                     
                     const responseText = await callGeminiWithRetry(sys, userP, schema, task.imageUrl);
-                    const cleanJson = responseText.replace(/```json|```/g, "").trim();
-                    const data = JSON.parse(cleanJson);
+                    const data = JSON.parse(responseText.replace(/```json|```/g, "").trim());
+                    
+                    let generatedImgUrl = null;
+                    if (data.imagePrompt) {
+                        setGeneratingStatus('imagen');
+                        generatedImgUrl = await callImagen(data.imagePrompt);
+                    }
                     
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { 
                         type: 'photo', 
                         questionType: data.qType, 
-                        content: `【AI 類似挑戰】\n${data.content}`, 
+                        content: `【AI 智能挑戰】\n${data.content}`, 
                         date: new Date().toISOString().split('T')[0], 
                         category: task.category, 
-                        imageUrl: null, 
+                        imageUrl: generatedImgUrl, 
                         correctAnswer: data.answer, 
-                        note: `由戰績榜 #${task.globalIndex} 延伸生成`, 
+                        note: `由戰績榜 #${task.globalIndex} AI 落子生成`, 
                         completed: false, 
                         wasIncorrect: false, 
                         status: 'active', 
@@ -177,12 +212,15 @@
                     });
 
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { similarCount: (task.similarCount || 0) + 1 });
-                    setAiMessage({ text: "AI 類似題已成功落子，請前往「待挑戰」迎戰！", status: 'correct' });
+                    setAiMessage({ text: "AI 類似題（含附圖）已成功落子，請前往「待挑戰」迎戰！", status: 'correct' });
                     setTimeout(() => setAiMessage(null), 2000);
                 } catch (e) {
-                    setAiMessage({ text: "此局對弈稍遇阻礙（AI 生成失敗），請再試一次。", status: 'wrong' });
+                    setAiMessage({ text: "棋局佈陣中斷，請再試一次。", status: 'wrong' });
                     setTimeout(() => setAiMessage(null), 2500);
-                } finally { setGeneratingId(null); }
+                } finally { 
+                    setGeneratingId(null); 
+                    setGeneratingStatus(null);
+                }
             };
 
             useEffect(() => {
@@ -329,7 +367,7 @@
 
                     <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
                         <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200 uppercase">
-                            VER 10.8
+                            VER 10.9
                         </div>
                         <div className="max-w-4xl mx-auto">
                             <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg ring-4 ring-amber-500/20">
@@ -445,6 +483,7 @@
                                             task={task} 
                                             mode={viewMode}
                                             isGenerating={generatingId === task.id}
+                                            genStatus={generatingStatus}
                                             onDelete={() => setDeleteTarget(task.id)} 
                                             onSubmit={(ans) => submitAnswer(task, ans)}
                                             onTextDone={() => {
@@ -485,7 +524,7 @@
             );
         };
 
-        const TaskCard = ({ task, onDelete, onSubmit, onTextDone, onGenerateSimilar, openImg, mode, onUpdateNote, isGenerating }) => {
+        const TaskCard = ({ task, onDelete, onSubmit, onTextDone, onGenerateSimilar, openImg, mode, onUpdateNote, isGenerating, genStatus }) => {
             const [myInput, setMyInput] = useState("");
             const isReview = task.wasIncorrect && task.status === 'needsReview' && mode === 'active';
 
@@ -498,7 +537,7 @@
                             {mode === 'history' && (
                                 <button onClick={(e) => { e.stopPropagation(); onGenerateSimilar(); }} disabled={isGenerating} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black shadow-sm transition-all border ${isGenerating ? 'bg-stone-200 text-stone-400' : 'bg-indigo-600 text-white border-indigo-500 hover:bg-indigo-700 active:scale-95'}`}>
                                     {isGenerating ? <Icon name="loader-2" size={10} className="btn-spinner" /> : <Icon name="sparkles" size={10} />}
-                                    AI 類似題 ({task.similarCount || 0})
+                                    {isGenerating ? (genStatus === 'gemini' ? '正在思考...' : 'AI 繪圖中...') : `AI 類似題 (${task.similarCount || 0})`}
                                 </button>
                             )}
                             <span className={`text-[10px] font-black tracking-tighter uppercase ${mode === 'future' ? 'text-indigo-600' : 'text-stone-500'}`}>{task.date}</span>
