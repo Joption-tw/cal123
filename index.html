@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V11.1</title>
+    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V11.3</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
@@ -90,17 +90,18 @@
 
         const App = () => {
             const [user, setUser] = useState(null);
-            const [activeTasks, setActiveTasks] = useState([]); // 存儲未完成與未來題目
-            const [historyTasks, setHistoryTasks] = useState([]); // 存儲已完成歷史
-            const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
+            const [activeTasks, setActiveTasks] = useState([]); // 僅存儲未完成與未來的
+            const [historyTasks, setHistoryTasks] = useState([]); // 僅存儲已完成的
+            const [hasTriggeredHistory, setHasTriggeredHistory] = useState(false);
+            const [historyDisplayLimit, setHistoryDisplayLimit] = useState(10); // 歷史紀錄一次顯示10題
             
             const [timeLeft, setTimeLeft] = useState({ d: 0, h: 0, m: 0, s: 0 });
             const [isLoading, setIsLoading] = useState(true);
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [generatingStatus, setGeneratingStatus] = useState(null); 
             const [generatingId, setGeneratingId] = useState(null); 
-            const [inputMode, setInputMode] = useState("text"); 
             const [viewMode, setViewMode] = useState("active"); 
+            const [inputMode, setInputMode] = useState("text"); 
             const [aiMessage, setAiMessage] = useState(null);
             const [selectedImg, setSelectedImg] = useState(null); 
             const [deleteTarget, setDeleteTarget] = useState(null);
@@ -113,21 +114,18 @@
 
             const targetDate = useMemo(() => new Date('2026-05-16T00:00:00'), []);
 
-            // AI 通訊函數 (修復格式)
             const callGeminiWithRetry = async (systemPrompt, userPrompt, schema = null, imageBase64 = null) => {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
                 const parts = [{ text: userPrompt }];
-                if (imageBase64 && imageBase64.startsWith('data:image')) {
+                if (imageBase64) {
                     const mimeType = imageBase64.match(/data:(.*?);/)?.[1] || "image/jpeg";
                     parts.push({ inlineData: { mimeType, data: imageBase64.split(',')[1] } });
                 }
-                const payload = { contents: [{ parts }], systemInstruction: { parts: [{ text: systemPrompt }] } };
+                const payload = { contents: [{ role: "user", parts }], systemInstruction: { parts: [{ text: systemPrompt }] } };
                 if (schema) { payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema }; }
-
                 for (let i = 0; i <= 5; i++) {
                     try {
                         const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                        if (!response.ok) throw new Error("API Failed");
                         const result = await response.json();
                         const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
                         if (!text) throw new Error("No Content");
@@ -141,11 +139,7 @@
 
             const callImagen = async (prompt) => {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
-                // V11.1 修正：instances 為對象結構
-                const payload = { 
-                    instances: { prompt: `${prompt}. Precise educational diagram, minimalist sketch style, white background, no text.` }, 
-                    parameters: { sampleCount: 1 } 
-                };
+                const payload = { instances: { prompt: `${prompt}. Clear scientific diagram, educational style, white background.` }, parameters: { sampleCount: 1 } };
                 try {
                     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                     const result = await response.json();
@@ -157,24 +151,25 @@
                 setGeneratingId(task.id);
                 setGeneratingStatus('gemini');
                 try {
-                    const sys = "你是一位國中會考名師。請生成一題觀念相同但內容不同的練習題。必須輸出純 JSON 格式。";
+                    const sys = "你是一位國中會考名師。請生成一題觀念相同但內容不同的類似練習題。必須輸出純 JSON 格式。包含 content, qType, answer, imagePrompt 欄位。";
                     const schema = { type: "OBJECT", properties: { content: { type: "STRING" }, qType: { type: "STRING", enum: ["choice", "open"] }, answer: { type: "STRING" }, imagePrompt: { type: "STRING" } }, required: ["content", "qType", "answer", "imagePrompt"] };
-                    const userP = `題目：${task.content}。答案：${task.correctAnswer}。請生成類似挑戰。`;
-                    const res = await callGeminiWithRetry(sys, userP, schema, task.imageUrl);
-                    const data = JSON.parse(res.replace(/```json|```/g, "").trim());
-                    let img = null;
-                    if (data.imagePrompt) { setGeneratingStatus('imagen'); img = await callImagen(data.imagePrompt); }
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { type: 'photo', questionType: data.qType, content: `【AI 智能挑戰】\n${data.content}`, date: new Date().toISOString().split('T')[0], category: task.category, imageUrl: img, correctAnswer: data.answer, note: `由 #${task.globalIndex} 衍生`, completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), similarCount: 0 });
+                    const userP = `題目：${task.content}。答案：${task.correctAnswer}。請生成類似題，不要提及「如圖」。`;
+                    const rawRes = await callGeminiWithRetry(sys, userP, schema, task.imageUrl);
+                    const jsonMatch = rawRes.match(/\{[\s\S]*\}/);
+                    const data = JSON.parse(jsonMatch[0]);
+                    let genImg = null;
+                    if (data.imagePrompt) { setGeneratingStatus('imagen'); genImg = await callImagen(data.imagePrompt); }
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { type: 'photo', questionType: data.qType, content: `【AI 智能挑戰】\n${data.content}`, date: new Date().toISOString().split('T')[0], category: task.category, imageUrl: genImg, correctAnswer: data.answer, note: `由 #${task.globalIndex} AI 落子`, completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), similarCount: 0 });
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { similarCount: (task.similarCount || 0) + 1 });
-                    setAiMessage({ text: "AI 已完成佈陣！", status: 'correct' });
+                    setAiMessage({ text: "AI 思考完畢，新對局已公佈！", status: 'correct' });
                     setTimeout(() => setAiMessage(null), 2000);
                 } catch (e) {
-                    setAiMessage({ text: "AI 思考中斷，請重試。", status: 'wrong' });
+                    setAiMessage({ text: "此棋路稍遇阻礙，請再試一次。", status: 'wrong' });
                     setTimeout(() => setAiMessage(null), 2500);
                 } finally { setGeneratingId(null); setGeneratingStatus(null); }
             };
 
-            // 1. 初始化 Auth 與優先撈取 Active 資料
+            // 數據撈取分兩段：第一段為 Active 資料
             useEffect(() => {
                 onAuthStateChanged(auth, u => { if (!u) signInAnonymously(auth); setUser(u); });
                 const timer = setInterval(() => {
@@ -187,7 +182,6 @@
 
             useEffect(() => {
                 if (!user) return;
-                // 優先讀取未完成的題目 (Active + Future)
                 const qActive = query(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), where('completed', '==', false));
                 const unsubActive = onSnapshot(qActive, (snap) => {
                     setActiveTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -196,64 +190,55 @@
                 return () => unsubActive();
             }, [user]);
 
-            // 2. 當切換到戰績榜時，才讀取 History 資料 (Lazy Loading)
+            // 第二段：當切換到戰績榜時才去撈歷史
             useEffect(() => {
-                if (viewMode === 'history' && !hasLoadedHistory && user) {
+                if (viewMode === 'history' && !hasTriggeredHistory && user) {
                     const qHistory = query(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), where('completed', '==', true));
                     const unsubHistory = onSnapshot(qHistory, (snap) => {
                         setHistoryTasks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                        setHasLoadedHistory(true);
+                        setHasTriggeredHistory(true);
                     });
                     return () => unsubHistory();
                 }
-            }, [viewMode, hasLoadedHistory, user]);
+            }, [viewMode, hasTriggeredHistory, user]);
 
             const todayStr = useMemo(() => {
                 const now = new Date();
                 return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
             }, []);
 
-            // 全域編號計算：合併後排序
-            const allTasksSorted = useMemo(() => {
+            // 全域排序，給予不重複編號
+            const sortedAll = useMemo(() => {
                 const combined = [...activeTasks, ...historyTasks];
                 combined.sort((a, b) => {
                     if (a.date !== b.date) return a.date.localeCompare(b.date);
                     return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
                 });
-                return combined.map((t, i) => ({ ...t, globalIndex: i + 1 }));
+                return combined.map((t, idx) => ({ ...t, globalIndex: idx + 1 }));
             }, [activeTasks, historyTasks]);
 
-            const filteredTasks = useMemo(() => {
-                if (viewMode === 'active') {
-                    return allTasksSorted.filter(task => {
-                        if (task.date > todayStr) return false;
-                        if (!task.completed) return true;
-                        if (task.wasIncorrect && task.status === 'needsReview') {
-                            const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : "";
-                            return solvedDate !== todayStr;
-                        }
-                        return false;
-                    });
-                } else if (viewMode === 'future') {
-                    return allTasksSorted.filter(task => task.date > todayStr);
-                } else {
-                    // 戰績榜 (僅顯示已擊破題目)
-                    return allTasksSorted.filter(task => {
-                        if (!task.completed) return false;
-                        if (task.wasIncorrect && task.status === 'needsReview') {
-                            const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : "";
-                            return solvedDate === todayStr;
-                        }
-                        return true;
-                    }).reverse(); // 戰績按最新排列
-                }
-            }, [allTasksSorted, viewMode, todayStr]);
-
             const counts = useMemo(() => ({
-                active: allTasksSorted.filter(task => task.date <= todayStr && (!task.completed || (task.wasIncorrect && task.status === 'needsReview' && (task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] !== todayStr : false)))).length,
-                future: allTasksSorted.filter(task => task.date > todayStr).length,
-                history: hasLoadedHistory ? historyTasks.length : "?" // 讀取中顯示問號
-            }), [allTasksSorted, todayStr, hasLoadedHistory, historyTasks]);
+                active: sortedAll.filter(t => t.date <= todayStr && (!t.completed || (t.wasIncorrect && t.status === 'needsReview' && (t.completedAt ? new Date(t.completedAt?.seconds * 1000).toISOString().split('T')[0] !== todayStr : false)))).length,
+                future: sortedAll.filter(t => t.date > todayStr).length,
+                history: hasTriggeredHistory ? historyTasks.length : "?"
+            }), [sortedAll, todayStr, hasTriggeredHistory, historyTasks]);
+
+            // 渲染列表 (包含 Slice 切片，實現「畫到哪顯示到哪」)
+            const listToDisplay = useMemo(() => {
+                if (viewMode === 'active') {
+                    return sortedAll.filter(t => t.date <= todayStr && (!t.completed || (t.wasIncorrect && t.status === 'needsReview' && (t.completedAt ? new Date(t.completedAt?.seconds * 1000).toISOString().split('T')[0] !== todayStr : false))));
+                }
+                if (viewMode === 'future') {
+                    return sortedAll.filter(t => t.date > todayStr);
+                }
+                // 戰績榜：按最新擊破排列，並限制初始顯示數量
+                const hist = sortedAll.filter(t => {
+                    if (!t.completed) return false;
+                    if (t.wasIncorrect && t.status === 'needsReview' && (t.completedAt ? new Date(t.completedAt?.seconds * 1000).toISOString().split('T')[0] === todayStr : false)) return true;
+                    return true;
+                }).reverse();
+                return hist.slice(0, historyDisplayLimit);
+            }, [sortedAll, viewMode, todayStr, historyDisplayLimit]);
 
             const addTask = async (e) => {
                 e.preventDefault();
@@ -268,9 +253,9 @@
                     }
                     setNewTask("");
                     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-                    setAiMessage({ text: "落子成功！對局已佈局。", status: 'correct' });
+                    setAiMessage({ text: "落子成功！任務已佈置。", status: 'correct' });
                     setTimeout(() => { setAiMessage(null); document.getElementById('battle-section')?.scrollIntoView({ behavior: 'smooth' }); }, 1000);
-                } catch (e) { setAiMessage({ text: "落子失敗，請重試。", status: 'wrong' }); setTimeout(() => setAiMessage(null), 2500); } finally { setIsSubmitting(false); }
+                } catch (e) { setAiMessage({ text: "網路棋路不穩，落子失敗。", status: 'wrong' }); setTimeout(() => setAiMessage(null), 2500); } finally { setIsSubmitting(false); }
             };
 
             const submitAnswer = async (task, inputAnswer) => {
@@ -309,29 +294,32 @@
             if (isLoading && !user) return <div className="loading-overlay"><div className="spinner"></div></div>;
 
             return (
-                <div className="min-h-screen relative pb-12">
+                <div className="min-h-screen relative pb-20">
                     <div className="go-board-overlay"></div>
+                    
                     {aiMessage && (
                         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm animate-in fade-in">
                             <div className="glass-card celebrate-pop p-10 rounded-3xl shadow-2xl max-w-sm text-center border-t-8 border-amber-500">
                                 <Icon name={aiMessage.status === 'correct' ? "award" : "help-circle"} size={80} className={`${aiMessage.status === 'correct' ? 'text-amber-500' : 'text-red-500'} mx-auto mb-6`} />
-                                <h3 className="text-3xl font-black mb-3 text-stone-800 tracking-tight">{aiMessage.status === 'correct' ? "突圍成功！" : "尚未突圍"}</h3>
+                                <h3 className="text-3xl font-black mb-3 text-stone-800 tracking-tight">{aiMessage.status === 'correct' ? "擊破成功！" : "尚未突圍"}</h3>
                                 <p className="text-xl text-stone-600 font-bold italic px-2 leading-relaxed">{aiMessage.text}</p>
                             </div>
                         </div>
                     )}
+
                     {deleteTarget && (
                         <div className="fixed inset-0 z-[1050] flex items-center justify-center p-6 bg-stone-900/90 backdrop-blur-md">
                             <div className="bg-white p-8 rounded-3xl shadow-2xl border-4 border-stone-800 w-full max-w-xs text-center animate-in zoom-in-95">
                                 <Icon name="trash-2" size={40} className="mx-auto mb-4 text-red-600" />
                                 <h3 className="text-xl font-black mb-4 text-stone-800 tracking-tight">確定要移除此對局嗎？</h3>
                                 <div className="flex gap-3">
-                                    <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-stone-100 text-stone-600 rounded-xl font-bold">取消</button>
-                                    <button onClick={async () => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget)); setDeleteTarget(null); }} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold">確認</button>
+                                    <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-stone-100 text-stone-600 rounded-xl font-bold hover:bg-stone-200">取消</button>
+                                    <button onClick={async () => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget)); setDeleteTarget(null); }} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold shadow-lg">確認刪除</button>
                                 </div>
                             </div>
                         </div>
                     )}
+
                     {selectedImg && (
                         <div className="fixed inset-0 z-[1100] bg-black/95 flex items-center justify-center p-4 cursor-pointer" onClick={() => setSelectedImg(null)}>
                             <img src={selectedImg} className="max-w-full max-h-full rounded-xl animate-in zoom-in-95 shadow-2xl border-4 border-white/20" />
@@ -339,7 +327,7 @@
                     )}
 
                     <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
-                        <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200">VER 11.1</div>
+                        <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200">VER 11.3</div>
                         <div className="max-w-4xl mx-auto">
                             <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg ring-4 ring-amber-500/20">
                                 <Icon name="flame" size={24} /> <span>SAI ‧ 應試覺醒</span>
@@ -353,13 +341,13 @@
 
                     <main className="max-w-7xl mx-auto px-4 py-6 relative z-10">
                         <div className="grid lg:grid-cols-12 gap-8">
-                            {/* 媽媽區域 */}
+                            {/* 媽媽佈局區 (始終快加載) */}
                             <div className="lg:col-span-4">
                                 <div className="glass-card p-6 rounded-3xl border-2 border-stone-800 shadow-2xl sticky top-4">
                                     <h2 className="font-black text-xl mb-4 flex items-center gap-2 text-stone-800">
                                         <div className="w-5 h-5 rounded-full bg-black shadow-inner"></div> 佈局策略 (媽媽)
                                     </h2>
-                                    <div className="flex bg-stone-100 rounded-2xl p-1 mb-6">
+                                    <div className="flex bg-stone-100 rounded-2xl p-1 mb-6 shadow-inner">
                                         <button onClick={() => setInputMode("text")} className={`flex-1 py-3 text-sm font-black rounded-xl transition-all ${inputMode === "text" ? 'bg-white text-indigo-700 shadow-md' : 'text-stone-400'}`}>文字任務</button>
                                         <button onClick={() => setInputMode("photo")} className={`flex-1 py-3 text-sm font-black rounded-xl transition-all ${inputMode === "photo" ? 'bg-white text-indigo-700 shadow-md' : 'text-stone-400'}`}>多圖佈陣</button>
                                     </div>
@@ -374,7 +362,7 @@
                                             <div className="space-y-4">
                                                 <div onClick={() => !isSubmitting && fileInputRef.current.click()} className="p-6 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center cursor-pointer bg-indigo-100/30">
                                                     <Icon name="image-plus" size={32} className="text-indigo-400 mb-1" />
-                                                    <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">選取題目圖片</span>
+                                                    <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">點此選取題目照片</span>
                                                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={async (e) => {
                                                         const files = Array.from(e.target.files);
                                                         const previews = await Promise.all(files.map(async f => ({ id: Math.random().toString(36).substr(2, 9), dataUrl: await compressImage(f), qType: 'choice', answer: 'A' })));
@@ -384,7 +372,7 @@
                                                 </div>
                                                 <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scroll">
                                                     {previewList.map(item => (
-                                                        <div key={item.id} className="p-3 bg-white/50 rounded-2xl border-2 border-stone-200 relative">
+                                                        <div key={item.id} className="p-3 bg-white/50 rounded-2xl border-2 border-stone-200 relative animate-in slide-in-from-right">
                                                             <button type="button" onClick={() => setPreviewList(prev => prev.filter(i => i.id !== item.id))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg z-20"><Icon name="x" size={14} /></button>
                                                             <div className="flex gap-3">
                                                                 <img src={item.dataUrl} className="w-16 h-16 object-cover rounded-lg border cursor-zoom-in" onClick={() => setSelectedImg(item.dataUrl)} />
@@ -407,7 +395,7 @@
                                                 </div>
                                             </div>
                                         ) : (
-                                            <textarea placeholder="例如：讀完國文第一冊、完成數學模擬卷..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="4" className="w-full p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm outline-none text-black" />
+                                            <textarea placeholder="例如：讀完國文第一冊、完成數學模擬卷..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="4" className="w-full p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm outline-none text-black shadow-inner" />
                                         )}
                                         <button type="submit" disabled={isSubmitting || (inputMode === 'photo' ? previewList.length === 0 : !newTask.trim())} className={`w-full py-4 rounded-2xl font-black text-lg shadow-xl transition-all flex items-center justify-center gap-3 ${isSubmitting ? 'bg-stone-400' : 'bg-stone-900 text-white hover:bg-black active:scale-95'}`}>
                                             {isSubmitting ? <><Icon name="loader-2" size={24} className="btn-spinner" />正在佈陣...</> : "確認佈局落子"}
@@ -416,7 +404,7 @@
                                 </div>
                             </div>
 
-                            {/* 實戰對局區 */}
+                            {/* 稟軒實戰區 (分段讀取 + 捲動加載) */}
                             <div className="lg:col-span-8" id="battle-section">
                                 <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-6 gap-4">
                                     <h2 className="font-black text-xl flex items-center gap-2 text-stone-800">
@@ -434,19 +422,31 @@
                                         </button>
                                     </div>
                                 </div>
-                                <div className="grid md:grid-cols-2 gap-6 min-h-[300px]">
-                                    {filteredTasks.map(task => (
+                                <div className="grid md:grid-cols-2 gap-6 min-h-[400px]">
+                                    {listToDisplay.map(task => (
                                         <TaskCard 
                                             key={task.id} task={task} mode={viewMode} isGenerating={generatingId === task.id} genStatus={generatingStatus}
                                             onDelete={() => setDeleteTarget(task.id)} onSubmit={ans => submitAnswer(task, ans)} onTextDone={() => {
                                                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-                                                fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: `任務：${task.content}` }] }], systemInstruction: { parts: [{ text: "熱血鼓勵語，不超過15字。" }] } }) })
+                                                fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: `任務：${task.content}` }] }], systemInstruction: { parts: [{ text: "給一句充滿圍棋風格的簡短鼓勵語，不超過15字。" }] } }) })
                                                 .then(r => r.json()).then(res => { setAiMessage({ text: res.candidates?.[0]?.content?.parts?.[0]?.text || "做得好！", status: 'correct' }); setTimeout(async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { completed: true, status: 'archived', completedAt: serverTimestamp() }); setAiMessage(null); }, 1500); });
                                             }} onGenerateSimilar={() => generateSimilarTask(task)} openImg={setSelectedImg} onUpdateNote={note => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { note })}
                                         />
                                     ))}
-                                    {filteredTasks.length === 0 && <div className="md:col-span-2 text-center py-24 border-4 border-dashed border-stone-300 rounded-3xl font-black text-stone-400 italic px-10">{isLoading ? "正在優先對應待挑戰資料..." : "目前尚無對局資料。"}</div>}
+                                    {listToDisplay.length === 0 && <div className="md:col-span-2 text-center py-24 border-4 border-dashed border-stone-300 rounded-3xl font-black text-stone-400 italic px-10">{isLoading ? "正在讀取優先任務..." : "目前清單清空，等候落子。"}</div>}
                                 </div>
+
+                                {viewMode === 'history' && counts.history !== "?" && counts.history > historyDisplayLimit && (
+                                    <div className="mt-8 text-center">
+                                        <button 
+                                            onClick={() => setHistoryDisplayLimit(prev => prev + 10)}
+                                            className="bg-white border-2 border-stone-800 text-stone-800 px-8 py-3 rounded-2xl font-black text-sm shadow-md hover:bg-stone-50 active:scale-95 transition-all"
+                                        >
+                                            <Icon name="chevrons-down" size={18} className="inline mr-2" /> 
+                                            檢索更多戰績 (目前展示 {historyDisplayLimit} / {counts.history} 題)
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </main>
@@ -458,58 +458,58 @@
             const [myInput, setMyInput] = useState("");
             const isReview = task.wasIncorrect && task.status === 'needsReview' && mode === 'active';
             return (
-                <div className={`flex flex-col rounded-3xl border-2 transition-all duration-300 glass-card shadow-lg group overflow-hidden border-stone-800 category-${task.category} ${isReview ? 'ring-4 ring-amber-400 animate-pulse' : ''} ${mode === 'history' ? 'opacity-85 grayscale-[0.1]' : ''}`}>
+                <div className={`flex flex-col rounded-3xl border-2 transition-all duration-300 glass-card shadow-lg group overflow-hidden border-stone-800 category-${task.category} ${isReview ? 'ring-4 ring-amber-400 animate-pulse' : ''} ${mode === 'history' ? 'opacity-85 grayscale-[0.05]' : ''}`}>
                     <div className="p-3 flex items-center justify-between border-b bg-stone-50/50">
                         <div className="flex items-center gap-2">
                             <span className="bg-stone-800 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">#{task.globalIndex || '?'}</span>
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black tag-${task.category}`}>{task.category}</span>
                             {mode === 'history' && (
-                                <button onClick={e => { e.stopPropagation(); onGenerateSimilar(); }} disabled={isGenerating} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border ${isGenerating ? 'bg-stone-100 text-stone-400' : 'bg-indigo-600 text-white active:scale-95'}`}>
+                                <button onClick={e => { e.stopPropagation(); onGenerateSimilar(); }} disabled={isGenerating} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border transition-all ${isGenerating ? 'bg-stone-100 text-stone-400' : 'bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95'}`}>
                                     {isGenerating ? <Icon name="loader-2" size={10} className="btn-spinner" /> : <Icon name="sparkles" size={10} />} {isGenerating ? (genStatus === 'gemini' ? '思考中' : '繪圖中') : `AI題(${task.similarCount || 0})`}
                                 </button>
                             )}
                             <span className={`text-[10px] font-black tracking-tighter uppercase ${mode === 'future' ? 'text-indigo-600' : 'text-stone-500'}`}>{task.date}</span>
                         </div>
-                        <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-stone-300 hover:text-red-500 p-1 active:scale-95"><Icon name="trash-2" size={16} /></button>
+                        <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-stone-300 hover:text-red-500 p-1 transition-all"><Icon name="trash-2" size={16} /></button>
                     </div>
                     <div className="p-5 flex-1 flex flex-col">
                         <div className="flex-1">
                             <div className="flex items-start gap-4 mb-4">
-                                {task.type === 'text' && mode === 'active' && <button onClick={onTextDone} className="mt-1 text-stone-300 hover:text-green-500 active:scale-90"><Icon name="circle" size={32} /></button>}
-                                <p className={`text-lg font-black text-stone-900 leading-snug ${mode === 'history' ? 'line-through text-stone-400' : ''} whitespace-pre-line`}>{task.content || '解出題目：'}</p>
+                                {task.type === 'text' && mode === 'active' && <button onClick={onTextDone} className="mt-1 text-stone-300 hover:text-green-500 active:scale-90 transition-transform"><Icon name="circle" size={32} /></button>}
+                                <p className={`text-lg font-black text-stone-900 leading-snug ${mode === 'history' ? 'line-through text-stone-400' : ''} whitespace-pre-line`}>{task.content || '解出下列對局：'}</p>
                             </div>
                             {task.imageUrl && (
-                                <div className="mb-4 cursor-zoom-in relative group/img rounded-2xl overflow-hidden border-2 border-stone-100" onClick={() => openImg(task.imageUrl)}>
+                                <div className="mb-4 cursor-zoom-in relative group/img rounded-2xl overflow-hidden border-2 border-stone-100 shadow-md" onClick={() => openImg(task.imageUrl)}>
                                     <img src={task.imageUrl} className="w-full h-48 object-cover group-hover:brightness-90 transition-all" />
-                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity bg-black/10"><Icon name="maximize" size={32} className="text-white" /></div>
+                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity bg-black/10"><Icon name="maximize" size={32} className="text-white drop-shadow-lg" /></div>
                                 </div>
                             )}
                         </div>
                         {task.type === 'photo' && mode === 'active' && (
-                            <div className="mt-auto pt-4 bg-stone-100/50 p-4 rounded-2xl border border-stone-200">
+                            <div className="mt-auto pt-4 bg-stone-100/50 p-4 rounded-2xl border border-stone-200 shadow-inner">
                                 <p className="text-[10px] font-black text-stone-400 mb-3 uppercase tracking-tighter">提交解答</p>
                                 {task.questionType === 'choice' ? (
                                     <div className="grid grid-cols-4 gap-2">
-                                        {["A", "B", "C", "D"].map(c => <button key={c} onClick={() => onSubmit(c)} className="aspect-square bg-white border-2 border-stone-300 rounded-xl font-black text-lg hover:bg-stone-900 hover:text-white transition-all active:scale-90">{c}</button>)}
+                                        {["A", "B", "C", "D"].map(c => <button key={c} onClick={() => onSubmit(c)} className="aspect-square bg-white border-2 border-stone-300 rounded-xl font-black text-lg hover:bg-stone-900 hover:text-white transition-all shadow-sm active:scale-90">{c}</button>)}
                                     </div>
                                 ) : (
                                     <div className="flex gap-2">
-                                        <input type="text" value={myInput} onChange={e => setMyInput(e.target.value)} placeholder="答案..." className="flex-1 p-2 rounded-xl border-2 border-stone-200 font-bold text-sm bg-white text-black outline-none focus:border-stone-900" onKeyDown={e => e.key === 'Enter' && onSubmit(myInput)} />
+                                        <input type="text" value={myInput} onChange={e => setMyInput(e.target.value)} placeholder="答案..." className="flex-1 p-2 rounded-xl border-2 border-stone-200 font-bold text-sm bg-white text-black outline-none focus:border-stone-900 shadow-inner" onKeyDown={e => e.key === 'Enter' && onSubmit(myInput)} />
                                         <button onClick={() => onSubmit(myInput)} className="bg-stone-800 text-white px-4 rounded-xl font-black text-xs active:scale-95 transition-all">提交</button>
                                     </div>
                                 )}
                             </div>
                         )}
                         {(mode === 'future' || mode === 'history') && task.type === 'photo' && (
-                            <div className={`mt-auto p-4 rounded-2xl border flex items-center justify-between ${mode === 'future' ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}>
-                                <span className="text-xs font-black text-stone-500 uppercase">{mode === 'future' ? '預設' : '擊破'}:</span> <span className="text-xl font-black text-stone-900">{task.correctAnswer}</span>
+                            <div className={`mt-auto p-4 rounded-2xl border flex items-center justify-between shadow-inner ${mode === 'future' ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}>
+                                <span className="text-xs font-black text-stone-500 uppercase">{mode === 'future' ? '預設' : '擊破'}:</span> <span className="text-xl font-black text-stone-900 drop-shadow-sm">{task.correctAnswer}</span>
                             </div>
                         )}
                     </div>
                     <div className="px-5 pb-5 mt-2">
                         <div className="flex items-center gap-3 border-t-2 border-stone-100 pt-3">
                             <Icon name="edit-3" size={14} className="text-stone-300" />
-                            <input type="text" placeholder="心得筆記..." defaultValue={task.note} onBlur={e => onUpdateNote(e.target.value)} className="w-full bg-transparent outline-none italic font-black text-sm text-stone-500" />
+                            <input type="text" placeholder="心得筆記..." defaultValue={task.note} onBlur={e => onUpdateNote(e.target.value)} className="w-full bg-transparent outline-none italic font-black text-sm text-stone-500 focus:text-indigo-600 transition-colors" />
                         </div>
                     </div>
                 </div>
