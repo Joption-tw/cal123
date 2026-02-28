@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V10.7</title>
+    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V10.8</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
@@ -40,7 +40,7 @@
         .celebrate-pop { animation: pop-in 0.3s cubic-bezier(0.26, 0.53, 0.74, 1.48); }
         @keyframes pop-in { 0% { transform: scale(0.85); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
     </style>
-</head>
+ head>
 <body class="vibrant-bg">
     <div id="root"></div>
 
@@ -100,7 +100,7 @@
             const [aiMessage, setAiMessage] = useState(null);
             const [selectedImg, setSelectedImg] = useState(null); 
             
-            const [deleteTarget, setDeleteTarget] = useState(null); // 目前欲刪除的題目 ID
+            const [deleteTarget, setDeleteTarget] = useState(null);
 
             const [newTask, setNewTask] = useState("");
             const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
@@ -146,18 +146,41 @@
             const generateSimilarTask = async (task) => {
                 setGeneratingId(task.id);
                 try {
-                    const sys = "你是一位專業國中會考名師。請基於原題目內容，生成一題「觀念相同但內容不同」的類似練習題。必須輸出純 JSON 格式。";
+                    const sys = `你是一位專業國中會考名師。請基於原題目內容，生成一題「觀念相同但內容不同」的類似練習題。
+                    重要規則：
+                    1. 必須輸出純 JSON 格式。
+                    2. **絕對禁止提及「如附圖」、「如圖所示」、「參照下圖」等圖片參考文字**，因為生成的題目不會附帶圖片。
+                    3. 你必須透過精確的「文字描述」來構建情境。例如：若原題是位移圖，請改寫為「小明沿直線向東走50公尺，再折返向西走30公尺...」。
+                    4. 如果是理化或數學題，請將圖表資訊轉化為詳細的文字參數。`;
+
                     const schema = { type: "OBJECT", properties: { content: { type: "STRING" }, qType: { type: "STRING", enum: ["choice", "open"] }, answer: { type: "STRING" } }, required: ["content", "qType", "answer"] };
-                    const userP = `原題目科目：${task.category}。內容描述：${task.content}。正確答案：${task.correctAnswer || '無'}。如果是選擇題，請在 content 中包含 A, B, C, D 選項描述。`;
+                    const userP = `原題目科目：${task.category}。內容描述：${task.content}。正確答案：${task.correctAnswer || '無'}。若是選擇題，請在 content 中包含 A, B, C, D 選項。請確保題目不依賴圖片。`;
+                    
                     const responseText = await callGeminiWithRetry(sys, userP, schema, task.imageUrl);
                     const cleanJson = responseText.replace(/```json|```/g, "").trim();
                     const data = JSON.parse(cleanJson);
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { type: 'photo', questionType: data.qType, content: `【AI 類似挑戰】\n${data.content}`, date: new Date().toISOString().split('T')[0], category: task.category, imageUrl: null, correctAnswer: data.answer, note: `由戰績榜 #${task.globalIndex} 延伸生成`, completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), similarCount: 0 });
+                    
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { 
+                        type: 'photo', 
+                        questionType: data.qType, 
+                        content: `【AI 類似挑戰】\n${data.content}`, 
+                        date: new Date().toISOString().split('T')[0], 
+                        category: task.category, 
+                        imageUrl: null, 
+                        correctAnswer: data.answer, 
+                        note: `由戰績榜 #${task.globalIndex} 延伸生成`, 
+                        completed: false, 
+                        wasIncorrect: false, 
+                        status: 'active', 
+                        createdAt: serverTimestamp(), 
+                        similarCount: 0 
+                    });
+
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { similarCount: (task.similarCount || 0) + 1 });
                     setAiMessage({ text: "AI 類似題已成功落子，請前往「待挑戰」迎戰！", status: 'correct' });
                     setTimeout(() => setAiMessage(null), 2000);
                 } catch (e) {
-                    setAiMessage({ text: "此步棋局複雜，AI 佈局失敗，請再試一次。", status: 'wrong' });
+                    setAiMessage({ text: "此局對弈稍遇阻礙（AI 生成失敗），請再試一次。", status: 'wrong' });
                     setTimeout(() => setAiMessage(null), 2500);
                 } finally { setGeneratingId(null); }
             };
@@ -242,13 +265,7 @@
 
             const confirmDelete = async () => {
                 if (!deleteTarget) return;
-                try {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget));
-                } catch (e) {
-                    console.error("Delete Error:", e);
-                } finally {
-                    setDeleteTarget(null);
-                }
+                try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget)); } catch (e) { console.error("Delete Error:", e); } finally { setDeleteTarget(null); }
             };
 
             const compressImage = (file) => {
@@ -283,13 +300,13 @@
                         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm animate-in fade-in">
                             <div className={`glass-card celebrate-pop p-10 rounded-3xl shadow-2xl max-w-sm text-center border-t-8 ${aiMessage.status === 'correct' ? 'border-green-500' : 'border-red-500'} scale-110`}>
                                 <Icon name={aiMessage.status === 'correct' ? "award" : "help-circle"} size={80} className={aiMessage.status === 'correct' ? 'text-amber-500 mx-auto mb-6' : 'text-red-500 mx-auto mb-6'} />
-                                <h3 className="text-3xl font-black mb-3 text-stone-800 tracking-tight">{aiMessage.status === 'correct' ? "中盤獲勝！" : "尚未突圍"}</h3>
+                                <h3 className="text-3xl font-black mb-3 text-stone-800 tracking-tight">{aiMessage.status === 'correct' ? "成功擊破！" : "尚未突圍"}</h3>
                                 <p className="text-xl text-stone-600 font-bold italic px-2 leading-relaxed">{aiMessage.text}</p>
                             </div>
                         </div>
                     )}
 
-                    {/* 簡化後的刪除確認視窗 (取消密碼) */}
+                    {/* 刪除確認視窗 */}
                     {deleteTarget && (
                         <div className="fixed inset-0 z-[1050] flex items-center justify-center p-6 bg-stone-900/90 backdrop-blur-md">
                             <div className="bg-white p-8 rounded-3xl shadow-2xl border-4 border-stone-800 w-full max-w-xs text-center animate-in zoom-in-95">
@@ -312,7 +329,7 @@
 
                     <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
                         <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200 uppercase">
-                            VER 10.7
+                            VER 10.8
                         </div>
                         <div className="max-w-4xl mx-auto">
                             <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg ring-4 ring-amber-500/20">
@@ -494,7 +511,7 @@
                                 {task.type === 'text' && mode === 'active' && (
                                     <button onClick={onTextDone} className="mt-1 text-stone-300 hover:text-green-500 transition-all hover:scale-110 active:scale-90"><Icon name="circle" size={32} /></button>
                                 )}
-                                <p className={`text-lg font-black text-stone-900 leading-tight ${mode === 'history' ? 'line-through text-stone-400' : ''} whitespace-pre-line`}>{task.content || '解出下列對局：'}</p>
+                                <p className={`text-lg font-black text-stone-900 leading-snug ${mode === 'history' ? 'line-through text-stone-400' : ''} whitespace-pre-line`}>{task.content || '解出下列對局：'}</p>
                             </div>
                             {task.imageUrl && (
                                 <div className="mb-4 cursor-zoom-in relative group/img rounded-2xl overflow-hidden border-2 border-stone-100 shadow-sm" onClick={() => openImg(task.imageUrl)}>
