@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V13.5</title>
+    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V13.6</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
@@ -41,7 +41,7 @@
         .btn-spinner { animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
-        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         
         /* 試卷美學樣式 */
@@ -182,6 +182,9 @@
             const [viewMode, setViewMode] = useState("active"); 
             const [inputMode, setInputMode] = useState("photo"); 
             
+            // V13.6 科目篩選狀態
+            const [selectedSubject, setSelectedSubject] = useState("全部");
+
             const [aiMessage, setAiMessage] = useState(null);
             const [selectedImg, setSelectedImg] = useState(null); 
             const [deleteTarget, setDeleteTarget] = useState(null);
@@ -290,7 +293,6 @@
                 } finally { setGeneratingId(null); setGeneratingStatus(null); }
             };
 
-            // V13.5 AI 橡皮擦後續壓縮處理 (防止 1MB 限制報錯)
             const compressDataUrl = (dataUrl) => {
                 return new Promise((resolve, reject) => {
                     const img = new Image();
@@ -339,7 +341,7 @@
 
                     if (newBase64) {
                         const rawDataUrl = `data:image/jpeg;base64,${newBase64}`;
-                        const safeDataUrl = await compressDataUrl(rawDataUrl); // 二次壓縮防爆
+                        const safeDataUrl = await compressDataUrl(rawDataUrl); 
                         
                         setPreviewList(prev => prev.map(item => item.id === id ? { ...item, dataUrl: safeDataUrl } : item));
                         triggerBgStatus("筆跡清除完成！題目煥然一新。", "success", 3000);
@@ -386,17 +388,30 @@
                 return sorted.map((t, idx) => ({ ...t, globalIndex: idx + 1 }));
             }, [tasks]);
 
+            // V13.6 加入科目篩選邏輯
             const listToDisplay = useMemo(() => {
-                if (viewMode === 'active') return sortedTasks.filter(t => !t.completed && (t.date || "9999-99-99") <= todayStr);
-                if (viewMode === 'future') return sortedTasks.filter(t => (t.date || "9999-99-99") > todayStr);
-                return sortedTasks.filter(t => t.completed).reverse().slice(0, historyDisplayLimit);
-            }, [sortedTasks, viewMode, todayStr, historyDisplayLimit]);
+                let filtered = sortedTasks;
+                if (selectedSubject !== "全部") {
+                    filtered = filtered.filter(t => t.category === selectedSubject);
+                }
 
-            const counts = useMemo(() => ({
-                active: sortedTasks.filter(t => !t.completed && (t.date || "9999-99-99") <= todayStr).length,
-                future: sortedTasks.filter(t => (t.date || "9999-99-99") > todayStr).length,
-                history: sortedTasks.filter(t => t.completed).length
-            }), [sortedTasks, todayStr]);
+                if (viewMode === 'active') return filtered.filter(t => !t.completed && (t.date || "9999-99-99") <= todayStr);
+                if (viewMode === 'future') return filtered.filter(t => (t.date || "9999-99-99") > todayStr);
+                return filtered.filter(t => t.completed).reverse().slice(0, historyDisplayLimit);
+            }, [sortedTasks, viewMode, todayStr, historyDisplayLimit, selectedSubject]);
+
+            // V13.6 標籤數量也跟著篩選連動
+            const counts = useMemo(() => {
+                let filtered = sortedTasks;
+                if (selectedSubject !== "全部") {
+                    filtered = filtered.filter(t => t.category === selectedSubject);
+                }
+                return {
+                    active: filtered.filter(t => !t.completed && (t.date || "9999-99-99") <= todayStr).length,
+                    future: filtered.filter(t => (t.date || "9999-99-99") > todayStr).length,
+                    history: filtered.filter(t => t.completed).length
+                };
+            }, [sortedTasks, todayStr, selectedSubject]);
 
             // 上傳前預壓縮 (降載防止裁剪器當機)
             const preCompressForCropper = (file) => {
@@ -601,7 +616,7 @@
                     )}
 
                     <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
-                        <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200">VER 13.5</div>
+                        <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200">VER 13.6</div>
                         <div className="max-w-4xl mx-auto">
                             <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg ring-4 ring-amber-500/20">
                                 <Icon name="flame" size={24} /> <span>SAI ‧ 應試覺醒</span>
@@ -681,7 +696,7 @@
                             </div>
 
                             <div className="lg:col-span-8" id="battle-section">
-                                <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-6 gap-4">
+                                <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-4 gap-4">
                                     <h2 className="font-black text-xl flex items-center gap-2 text-stone-800"><div className="w-5 h-5 rounded-full bg-white border-2 border-stone-800 shadow-md"></div> 實戰對局區域</h2>
                                     <div className="flex bg-stone-200/60 p-1 rounded-2xl border border-stone-200 shadow-inner scale-90 sm:scale-100 origin-left overflow-x-auto">
                                         <button onClick={() => setViewMode('active')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center gap-2 ${viewMode === 'active' ? 'bg-stone-900 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}><Icon name="swords" size={14} /> 待挑戰 ({counts.active})</button>
@@ -689,6 +704,24 @@
                                         <button onClick={() => setViewMode('history')} className={`whitespace-nowrap px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center gap-2 ${viewMode === 'history' ? 'bg-amber-600 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}><Icon name="award" size={14} /> 戰績榜 ({counts.history})</button>
                                     </div>
                                 </div>
+
+                                {/* V13.6 科目篩選器 */}
+                                <div className="flex gap-2 overflow-x-auto custom-scroll pb-2 mb-4">
+                                    {["全部", ...SUBJECTS].map(sub => (
+                                        <button
+                                            key={sub}
+                                            onClick={() => setSelectedSubject(sub)}
+                                            className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-black transition-all border shadow-sm ${
+                                                selectedSubject === sub
+                                                    ? 'bg-stone-800 text-white border-stone-800'
+                                                    : 'bg-white text-stone-500 border-stone-200 hover:bg-stone-100 hover:text-stone-800'
+                                            }`}
+                                        >
+                                            {sub}
+                                        </button>
+                                    ))}
+                                </div>
+
                                 <div className="grid md:grid-cols-2 gap-6 min-h-[400px]">
                                     {listToDisplay.map(task => (
                                         <TaskCard 
@@ -697,7 +730,7 @@
                                             onGenerateSimilar={() => generateSimilarTask(task)} openImg={setSelectedImg} onUpdateNote={note => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { note })}
                                         />
                                     ))}
-                                    {listToDisplay.length === 0 && <div className="md:col-span-2 text-center py-24 border-4 border-dashed border-stone-300 rounded-3xl font-black text-stone-400 italic px-10">{isLoading ? "正在連線靈界..." : "棋盤清空，等候落子。"}</div>}
+                                    {listToDisplay.length === 0 && <div className="md:col-span-2 text-center py-24 border-4 border-dashed border-stone-300 rounded-3xl font-black text-stone-400 italic px-10">{isLoading ? "正在連線靈界..." : `目前「${selectedSubject}」清單清空，等候落子。`}</div>}
                                 </div>
 
                                 {viewMode === 'history' && counts.history > historyDisplayLimit && (
