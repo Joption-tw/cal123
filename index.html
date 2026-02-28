@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V11.3</title>
+    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V11.4</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
@@ -90,10 +90,10 @@
 
         const App = () => {
             const [user, setUser] = useState(null);
-            const [activeTasks, setActiveTasks] = useState([]); // 僅存儲未完成與未來的
-            const [historyTasks, setHistoryTasks] = useState([]); // 僅存儲已完成的
+            const [activeTasks, setActiveTasks] = useState([]);
+            const [historyTasks, setHistoryTasks] = useState([]);
             const [hasTriggeredHistory, setHasTriggeredHistory] = useState(false);
-            const [historyDisplayLimit, setHistoryDisplayLimit] = useState(10); // 歷史紀錄一次顯示10題
+            const [historyDisplayLimit, setHistoryDisplayLimit] = useState(10);
             
             const [timeLeft, setTimeLeft] = useState({ d: 0, h: 0, m: 0, s: 0 });
             const [isLoading, setIsLoading] = useState(true);
@@ -114,21 +114,40 @@
 
             const targetDate = useMemo(() => new Date('2026-05-16T00:00:00'), []);
 
+            // V11.4 精準解析函數
             const callGeminiWithRetry = async (systemPrompt, userPrompt, schema = null, imageBase64 = null) => {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                
                 const parts = [{ text: userPrompt }];
-                if (imageBase64) {
+                if (imageBase64 && imageBase64.includes('base64,')) {
                     const mimeType = imageBase64.match(/data:(.*?);/)?.[1] || "image/jpeg";
-                    parts.push({ inlineData: { mimeType, data: imageBase64.split(',')[1] } });
+                    const data = imageBase64.split('base64,')[1];
+                    parts.push({ inlineData: { mimeType, data } });
                 }
-                const payload = { contents: [{ role: "user", parts }], systemInstruction: { parts: [{ text: systemPrompt }] } };
-                if (schema) { payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema }; }
+                
+                const payload = {
+                    contents: [{ role: "user", parts }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] }
+                };
+
+                if (schema) {
+                    payload.generationConfig = {
+                        responseMimeType: "application/json",
+                        responseSchema: schema
+                    };
+                }
+
                 for (let i = 0; i <= 5; i++) {
                     try {
-                        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (!response.ok) throw new Error(`HTTP ${response.status}`);
                         const result = await response.json();
                         const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                        if (!text) throw new Error("No Content");
+                        if (!text) throw new Error("Empty Response");
                         return text;
                     } catch (err) {
                         if (i === 5) throw err;
@@ -139,7 +158,11 @@
 
             const callImagen = async (prompt) => {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
-                const payload = { instances: { prompt: `${prompt}. Clear scientific diagram, educational style, white background.` }, parameters: { sampleCount: 1 } };
+                // V11.4 格式：instances 必須是對象
+                const payload = { 
+                    instances: { prompt: `${prompt}. Clear line art diagram, minimalist scientific sketch, white background, no text, no labels.` }, 
+                    parameters: { sampleCount: 1 } 
+                };
                 try {
                     const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                     const result = await response.json();
@@ -151,25 +174,64 @@
                 setGeneratingId(task.id);
                 setGeneratingStatus('gemini');
                 try {
-                    const sys = "你是一位國中會考名師。請生成一題觀念相同但內容不同的類似練習題。必須輸出純 JSON 格式。包含 content, qType, answer, imagePrompt 欄位。";
-                    const schema = { type: "OBJECT", properties: { content: { type: "STRING" }, qType: { type: "STRING", enum: ["choice", "open"] }, answer: { type: "STRING" }, imagePrompt: { type: "STRING" } }, required: ["content", "qType", "answer", "imagePrompt"] };
-                    const userP = `題目：${task.content}。答案：${task.correctAnswer}。請生成類似題，不要提及「如圖」。`;
+                    const sys = `你是一位專業國中會考補教名師。請基於原題目內容，生成一題觀念相同但內容不同的練習題。
+                    輸出格式要求：
+                    1. 必須輸出純 JSON 格式。
+                    2. 若需視覺輔助，請在 content 中提及「根據下圖」。
+                    3. 在 imagePrompt 欄位提供英文描述，描述開頭應為 'A clear educational diagram about...'。`;
+
+                    const schema = { 
+                        type: "OBJECT", 
+                        properties: { 
+                            content: { type: "STRING" }, 
+                            qType: { type: "STRING", enum: ["choice", "open"] }, 
+                            answer: { type: "STRING" }, 
+                            imagePrompt: { type: "STRING" } 
+                        }, 
+                        required: ["content", "qType", "answer", "imagePrompt"] 
+                    };
+                    
+                    const userP = `科目：${task.category}。內容：${task.content}。解答：${task.correctAnswer}。請生成類似題，不要提及「如附圖」除非你提供了繪圖指令。`;
+                    
                     const rawRes = await callGeminiWithRetry(sys, userP, schema, task.imageUrl);
+                    
+                    // V11.4: 強力 JSON 提取正則，過濾對話內容
                     const jsonMatch = rawRes.match(/\{[\s\S]*\}/);
+                    if (!jsonMatch) throw new Error("PARSE_ERROR");
                     const data = JSON.parse(jsonMatch[0]);
+                    
                     let genImg = null;
-                    if (data.imagePrompt) { setGeneratingStatus('imagen'); genImg = await callImagen(data.imagePrompt); }
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { type: 'photo', questionType: data.qType, content: `【AI 智能挑戰】\n${data.content}`, date: new Date().toISOString().split('T')[0], category: task.category, imageUrl: genImg, correctAnswer: data.answer, note: `由 #${task.globalIndex} AI 落子`, completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), similarCount: 0 });
+                    if (data.imagePrompt) { 
+                        setGeneratingStatus('imagen'); 
+                        genImg = await callImagen(data.imagePrompt); 
+                    }
+                    
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { 
+                        type: 'photo', 
+                        questionType: data.qType, 
+                        content: `【AI 智能挑戰】\n${data.content}`, 
+                        date: new Date().toISOString().split('T')[0], 
+                        category: task.category, 
+                        imageUrl: genImg, 
+                        correctAnswer: data.answer, 
+                        note: `由 #${task.globalIndex} AI 生成`, 
+                        completed: false, 
+                        wasIncorrect: false, 
+                        status: 'active', 
+                        createdAt: serverTimestamp(), 
+                        similarCount: 0 
+                    });
+
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { similarCount: (task.similarCount || 0) + 1 });
-                    setAiMessage({ text: "AI 思考完畢，新對局已公佈！", status: 'correct' });
+                    setAiMessage({ text: "AI 已完成落子，請前往挑戰！", status: 'correct' });
                     setTimeout(() => setAiMessage(null), 2000);
                 } catch (e) {
-                    setAiMessage({ text: "此棋路稍遇阻礙，請再試一次。", status: 'wrong' });
+                    setAiMessage({ text: "此局對弈稍遇阻礙，請再試一次。", status: 'wrong' });
                     setTimeout(() => setAiMessage(null), 2500);
                 } finally { setGeneratingId(null); setGeneratingStatus(null); }
             };
 
-            // 數據撈取分兩段：第一段為 Active 資料
+            // 資料撈取邏輯
             useEffect(() => {
                 onAuthStateChanged(auth, u => { if (!u) signInAnonymously(auth); setUser(u); });
                 const timer = setInterval(() => {
@@ -190,7 +252,6 @@
                 return () => unsubActive();
             }, [user]);
 
-            // 第二段：當切換到戰績榜時才去撈歷史
             useEffect(() => {
                 if (viewMode === 'history' && !hasTriggeredHistory && user) {
                     const qHistory = query(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), where('completed', '==', true));
@@ -207,7 +268,6 @@
                 return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
             }, []);
 
-            // 全域排序，給予不重複編號
             const sortedAll = useMemo(() => {
                 const combined = [...activeTasks, ...historyTasks];
                 combined.sort((a, b) => {
@@ -223,15 +283,9 @@
                 history: hasTriggeredHistory ? historyTasks.length : "?"
             }), [sortedAll, todayStr, hasTriggeredHistory, historyTasks]);
 
-            // 渲染列表 (包含 Slice 切片，實現「畫到哪顯示到哪」)
             const listToDisplay = useMemo(() => {
-                if (viewMode === 'active') {
-                    return sortedAll.filter(t => t.date <= todayStr && (!t.completed || (t.wasIncorrect && t.status === 'needsReview' && (t.completedAt ? new Date(t.completedAt?.seconds * 1000).toISOString().split('T')[0] !== todayStr : false))));
-                }
-                if (viewMode === 'future') {
-                    return sortedAll.filter(t => t.date > todayStr);
-                }
-                // 戰績榜：按最新擊破排列，並限制初始顯示數量
+                if (viewMode === 'active') return sortedAll.filter(t => t.date <= todayStr && (!t.completed || (t.wasIncorrect && t.status === 'needsReview' && (t.completedAt ? new Date(t.completedAt?.seconds * 1000).toISOString().split('T')[0] !== todayStr : false))));
+                if (viewMode === 'future') return sortedAll.filter(t => t.date > todayStr);
                 const hist = sortedAll.filter(t => {
                     if (!t.completed) return false;
                     if (t.wasIncorrect && t.status === 'needsReview' && (t.completedAt ? new Date(t.completedAt?.seconds * 1000).toISOString().split('T')[0] === todayStr : false)) return true;
@@ -255,16 +309,23 @@
                     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
                     setAiMessage({ text: "落子成功！任務已佈置。", status: 'correct' });
                     setTimeout(() => { setAiMessage(null); document.getElementById('battle-section')?.scrollIntoView({ behavior: 'smooth' }); }, 1000);
-                } catch (e) { setAiMessage({ text: "網路棋路不穩，落子失敗。", status: 'wrong' }); setTimeout(() => setAiMessage(null), 2500); } finally { setIsSubmitting(false); }
+                } catch (e) { setAiMessage({ text: "落子失敗，請重試。", status: 'wrong' }); setTimeout(() => setAiMessage(null), 2500); } finally { setIsSubmitting(false); }
             };
 
             const submitAnswer = async (task, inputAnswer) => {
                 if (!inputAnswer.trim()) return;
                 if (inputAnswer.trim().toUpperCase() === task.correctAnswer.trim().toUpperCase()) {
-                    setAiMessage({ text: "神之一手！擊破成功！", status: 'correct' });
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                    let enc = "做得好！精彩的落子！";
+                    try {
+                        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: `任務：${task.content}。給稟軒一句熱血鼓勵語，15字內。` }] }] }) });
+                        const data = await res.json();
+                        enc = data.candidates?.[0]?.content?.parts?.[0]?.text || enc;
+                    } catch (e) {}
+                    setAiMessage({ text: enc, status: 'correct' });
                     setTimeout(async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { completed: true, status: task.wasIncorrect ? 'needsReview' : 'archived', completedAt: serverTimestamp() }); setAiMessage(null); }, 1500); 
                 } else {
-                    setAiMessage({ text: "棋路不對，請再深思！", status: 'wrong' });
+                    setAiMessage({ text: "此步不通，請再三思索！", status: 'wrong' });
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { wasIncorrect: true, status: 'needsReview' });
                     setTimeout(() => setAiMessage(null), 1500);
                 }
@@ -301,7 +362,7 @@
                         <div className="fixed inset-0 z-[2000] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm animate-in fade-in">
                             <div className="glass-card celebrate-pop p-10 rounded-3xl shadow-2xl max-w-sm text-center border-t-8 border-amber-500">
                                 <Icon name={aiMessage.status === 'correct' ? "award" : "help-circle"} size={80} className={`${aiMessage.status === 'correct' ? 'text-amber-500' : 'text-red-500'} mx-auto mb-6`} />
-                                <h3 className="text-3xl font-black mb-3 text-stone-800 tracking-tight">{aiMessage.status === 'correct' ? "擊破成功！" : "尚未突圍"}</h3>
+                                <h3 className="text-3xl font-black mb-3 text-stone-800 tracking-tight">{aiMessage.status === 'correct' ? "突圍成功！" : "尚未突圍"}</h3>
                                 <p className="text-xl text-stone-600 font-bold italic px-2 leading-relaxed">{aiMessage.text}</p>
                             </div>
                         </div>
@@ -311,9 +372,9 @@
                         <div className="fixed inset-0 z-[1050] flex items-center justify-center p-6 bg-stone-900/90 backdrop-blur-md">
                             <div className="bg-white p-8 rounded-3xl shadow-2xl border-4 border-stone-800 w-full max-w-xs text-center animate-in zoom-in-95">
                                 <Icon name="trash-2" size={40} className="mx-auto mb-4 text-red-600" />
-                                <h3 className="text-xl font-black mb-4 text-stone-800 tracking-tight">確定要移除此對局嗎？</h3>
-                                <div className="flex gap-3">
-                                    <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-stone-100 text-stone-600 rounded-xl font-bold hover:bg-stone-200">取消</button>
+                                <h3 className="text-xl font-black mb-4 text-stone-800 tracking-tight">移除此棋步嗎？</h3>
+                                <div className="flex gap-3 mt-6">
+                                    <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-stone-100 text-stone-600 rounded-xl font-bold">取消</button>
                                     <button onClick={async () => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget)); setDeleteTarget(null); }} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold shadow-lg">確認刪除</button>
                                 </div>
                             </div>
@@ -327,7 +388,7 @@
                     )}
 
                     <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
-                        <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200">VER 11.3</div>
+                        <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200">VER 11.4</div>
                         <div className="max-w-4xl mx-auto">
                             <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg ring-4 ring-amber-500/20">
                                 <Icon name="flame" size={24} /> <span>SAI ‧ 應試覺醒</span>
@@ -341,7 +402,6 @@
 
                     <main className="max-w-7xl mx-auto px-4 py-6 relative z-10">
                         <div className="grid lg:grid-cols-12 gap-8">
-                            {/* 媽媽佈局區 (始終快加載) */}
                             <div className="lg:col-span-4">
                                 <div className="glass-card p-6 rounded-3xl border-2 border-stone-800 shadow-2xl sticky top-4">
                                     <h2 className="font-black text-xl mb-4 flex items-center gap-2 text-stone-800">
@@ -353,14 +413,14 @@
                                     </div>
                                     <form onSubmit={addTask} className="space-y-4">
                                         <div className="grid grid-cols-2 gap-3">
-                                            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm text-black" />
+                                            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm text-black shadow-inner" />
                                             <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-black text-sm outline-none text-black">
                                                 {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
                                             </select>
                                         </div>
                                         {inputMode === 'photo' ? (
                                             <div className="space-y-4">
-                                                <div onClick={() => !isSubmitting && fileInputRef.current.click()} className="p-6 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center cursor-pointer bg-indigo-100/30">
+                                                <div onClick={() => !isSubmitting && fileInputRef.current.click()} className="p-6 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center cursor-pointer bg-indigo-100/30 hover:bg-white transition-colors">
                                                     <Icon name="image-plus" size={32} className="text-indigo-400 mb-1" />
                                                     <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">點此選取題目照片</span>
                                                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={async (e) => {
@@ -375,7 +435,7 @@
                                                         <div key={item.id} className="p-3 bg-white/50 rounded-2xl border-2 border-stone-200 relative animate-in slide-in-from-right">
                                                             <button type="button" onClick={() => setPreviewList(prev => prev.filter(i => i.id !== item.id))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg z-20"><Icon name="x" size={14} /></button>
                                                             <div className="flex gap-3">
-                                                                <img src={item.dataUrl} className="w-16 h-16 object-cover rounded-lg border cursor-zoom-in" onClick={() => setSelectedImg(item.dataUrl)} />
+                                                                <img src={item.dataUrl} className="w-16 h-16 object-cover rounded-lg border cursor-zoom-in shadow-sm" onClick={() => setSelectedImg(item.dataUrl)} />
                                                                 <div className="flex-1 space-y-2">
                                                                     <div className="flex gap-1">
                                                                         <button type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: 'choice'} : i))} className={`flex-1 py-1 text-[9px] font-black rounded border ${item.qType === 'choice' ? 'bg-indigo-600 text-white' : 'bg-white text-stone-400'}`}>選擇</button>
@@ -395,16 +455,15 @@
                                                 </div>
                                             </div>
                                         ) : (
-                                            <textarea placeholder="例如：讀完國文第一冊、完成數學模擬卷..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="4" className="w-full p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm outline-none text-black shadow-inner" />
+                                            <textarea placeholder="例如：完成國文複習講義..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="4" className="w-full p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm outline-none text-black shadow-inner" />
                                         )}
                                         <button type="submit" disabled={isSubmitting || (inputMode === 'photo' ? previewList.length === 0 : !newTask.trim())} className={`w-full py-4 rounded-2xl font-black text-lg shadow-xl transition-all flex items-center justify-center gap-3 ${isSubmitting ? 'bg-stone-400' : 'bg-stone-900 text-white hover:bg-black active:scale-95'}`}>
-                                            {isSubmitting ? <><Icon name="loader-2" size={24} className="btn-spinner" />正在佈陣...</> : "確認佈局落子"}
+                                            {isSubmitting ? <><Icon name="loader-2" size={24} className="btn-spinner" />正在佈局...</> : "確認佈局落子"}
                                         </button>
                                     </form>
                                 </div>
                             </div>
 
-                            {/* 稟軒實戰區 (分段讀取 + 捲動加載) */}
                             <div className="lg:col-span-8" id="battle-section">
                                 <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-6 gap-4">
                                     <h2 className="font-black text-xl flex items-center gap-2 text-stone-800">
@@ -426,24 +485,17 @@
                                     {listToDisplay.map(task => (
                                         <TaskCard 
                                             key={task.id} task={task} mode={viewMode} isGenerating={generatingId === task.id} genStatus={generatingStatus}
-                                            onDelete={() => setDeleteTarget(task.id)} onSubmit={ans => submitAnswer(task, ans)} onTextDone={() => {
-                                                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-                                                fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: `任務：${task.content}` }] }], systemInstruction: { parts: [{ text: "給一句充滿圍棋風格的簡短鼓勵語，不超過15字。" }] } }) })
-                                                .then(r => r.json()).then(res => { setAiMessage({ text: res.candidates?.[0]?.content?.parts?.[0]?.text || "做得好！", status: 'correct' }); setTimeout(async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { completed: true, status: 'archived', completedAt: serverTimestamp() }); setAiMessage(null); }, 1500); });
-                                            }} onGenerateSimilar={() => generateSimilarTask(task)} openImg={setSelectedImg} onUpdateNote={note => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { note })}
+                                            onDelete={() => setDeleteTarget(task.id)} onSubmit={ans => submitAnswer(task, ans)} onTextDone={() => submitAnswer(task, "TRUE")}
+                                            onGenerateSimilar={() => generateSimilarTask(task)} openImg={setSelectedImg} onUpdateNote={note => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { note })}
                                         />
                                     ))}
-                                    {listToDisplay.length === 0 && <div className="md:col-span-2 text-center py-24 border-4 border-dashed border-stone-300 rounded-3xl font-black text-stone-400 italic px-10">{isLoading ? "正在讀取優先任務..." : "目前清單清空，等候落子。"}</div>}
+                                    {listToDisplay.length === 0 && <div className="md:col-span-2 text-center py-24 border-4 border-dashed border-stone-300 rounded-3xl font-black text-stone-400 italic px-10">{isLoading ? "資料落子中..." : "目前清單清空。"}</div>}
                                 </div>
 
                                 {viewMode === 'history' && counts.history !== "?" && counts.history > historyDisplayLimit && (
                                     <div className="mt-8 text-center">
-                                        <button 
-                                            onClick={() => setHistoryDisplayLimit(prev => prev + 10)}
-                                            className="bg-white border-2 border-stone-800 text-stone-800 px-8 py-3 rounded-2xl font-black text-sm shadow-md hover:bg-stone-50 active:scale-95 transition-all"
-                                        >
-                                            <Icon name="chevrons-down" size={18} className="inline mr-2" /> 
-                                            檢索更多戰績 (目前展示 {historyDisplayLimit} / {counts.history} 題)
+                                        <button onClick={() => setHistoryDisplayLimit(prev => prev + 10)} className="bg-white border-2 border-stone-800 text-stone-800 px-8 py-3 rounded-2xl font-black text-sm shadow-md hover:bg-stone-50 active:scale-95 transition-all">
+                                            <Icon name="chevrons-down" size={18} className="inline mr-2" /> 檢索更多戰績 (目前展示 {historyDisplayLimit} / {counts.history} 題)
                                         </button>
                                     </div>
                                 )}
@@ -479,37 +531,37 @@
                                 <p className={`text-lg font-black text-stone-900 leading-snug ${mode === 'history' ? 'line-through text-stone-400' : ''} whitespace-pre-line`}>{task.content || '解出下列對局：'}</p>
                             </div>
                             {task.imageUrl && (
-                                <div className="mb-4 cursor-zoom-in relative group/img rounded-2xl overflow-hidden border-2 border-stone-100 shadow-md" onClick={() => openImg(task.imageUrl)}>
-                                    <img src={task.imageUrl} className="w-full h-48 object-cover group-hover:brightness-90 transition-all" />
+                                <div className="mb-4 cursor-zoom-in relative group/img rounded-2xl overflow-hidden border-2 border-stone-100 shadow-sm" onClick={() => openImg(task.imageUrl)}>
+                                    <img src={task.imageUrl} className="w-full h-48 object-cover group-hover/img:brightness-90 transition-all" />
                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity bg-black/10"><Icon name="maximize" size={32} className="text-white drop-shadow-lg" /></div>
                                 </div>
                             )}
                         </div>
                         {task.type === 'photo' && mode === 'active' && (
-                            <div className="mt-auto pt-4 bg-stone-100/50 p-4 rounded-2xl border border-stone-200 shadow-inner">
+                            <div className="mt-auto pt-4 bg-stone-100/50 p-4 rounded-2xl border border-stone-200">
                                 <p className="text-[10px] font-black text-stone-400 mb-3 uppercase tracking-tighter">提交解答</p>
                                 {task.questionType === 'choice' ? (
                                     <div className="grid grid-cols-4 gap-2">
-                                        {["A", "B", "C", "D"].map(c => <button key={c} onClick={() => onSubmit(c)} className="aspect-square bg-white border-2 border-stone-300 rounded-xl font-black text-lg hover:bg-stone-900 hover:text-white transition-all shadow-sm active:scale-90">{c}</button>)}
+                                        {["A", "B", "C", "D"].map(c => <button key={c} onClick={() => onSubmit(c)} className="aspect-square bg-white border-2 border-stone-300 rounded-xl font-black text-lg hover:bg-stone-900 hover:text-white transition-all active:scale-90 shadow-sm">{c}</button>)}
                                     </div>
                                 ) : (
                                     <div className="flex gap-2">
                                         <input type="text" value={myInput} onChange={e => setMyInput(e.target.value)} placeholder="答案..." className="flex-1 p-2 rounded-xl border-2 border-stone-200 font-bold text-sm bg-white text-black outline-none focus:border-stone-900 shadow-inner" onKeyDown={e => e.key === 'Enter' && onSubmit(myInput)} />
-                                        <button onClick={() => onSubmit(myInput)} className="bg-stone-800 text-white px-4 rounded-xl font-black text-xs active:scale-95 transition-all">提交</button>
+                                        <button onClick={() => onSubmit(myInput)} className="bg-stone-800 text-white px-4 rounded-xl font-black text-xs active:scale-95 transition-all shadow-md">提交</button>
                                     </div>
                                 )}
                             </div>
                         )}
                         {(mode === 'future' || mode === 'history') && task.type === 'photo' && (
                             <div className={`mt-auto p-4 rounded-2xl border flex items-center justify-between shadow-inner ${mode === 'future' ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}>
-                                <span className="text-xs font-black text-stone-500 uppercase">{mode === 'future' ? '預設' : '擊破'}:</span> <span className="text-xl font-black text-stone-900 drop-shadow-sm">{task.correctAnswer}</span>
+                                <span className="text-xs font-black text-stone-500 uppercase">{mode === 'future' ? '預設' : '解答'}:</span> <span className="text-xl font-black text-stone-900 drop-shadow-sm">{task.correctAnswer}</span>
                             </div>
                         )}
                     </div>
                     <div className="px-5 pb-5 mt-2">
                         <div className="flex items-center gap-3 border-t-2 border-stone-100 pt-3">
                             <Icon name="edit-3" size={14} className="text-stone-300" />
-                            <input type="text" placeholder="心得筆記..." defaultValue={task.note} onBlur={e => onUpdateNote(e.target.value)} className="w-full bg-transparent outline-none italic font-black text-sm text-stone-500 focus:text-indigo-600 transition-colors" />
+                            <input type="text" placeholder="補充心得筆記..." defaultValue={task.note} onBlur={e => onUpdateNote(e.target.value)} className="w-full bg-transparent outline-none italic font-black text-sm text-stone-500 focus:text-indigo-600 transition-colors" />
                         </div>
                     </div>
                 </div>
