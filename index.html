@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V9.7</title>
+    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V10.1</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
@@ -30,6 +30,8 @@
 
         .loading-overlay { position: fixed; inset: 0; background: #2D2D2D; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; }
         .spinner { width: 40px; height: 40px; border: 4px solid #4b0082; border-top: 4px solid #ffd700; border-radius: 50%; animation: spin 1s linear infinite; }
+        
+        .btn-spinner { animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
         .custom-scroll::-webkit-scrollbar { width: 4px; }
@@ -63,7 +65,7 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         const appId = "exam-8ae8d";
-        const apiKey = ""; // Gemini API Key
+        const apiKey = ""; 
 
         const SUBJECTS = ["國文", "英文", "數學", "自然", "社會", "其他"];
 
@@ -91,8 +93,9 @@
             const [tasks, setTasks] = useState([]);
             const [timeLeft, setTimeLeft] = useState({ d: 0, h: 0, m: 0, s: 0 });
             const [isLoading, setIsLoading] = useState(true);
+            const [isSubmitting, setIsSubmitting] = useState(false);
             const [inputMode, setInputMode] = useState("text"); 
-            const [viewMode, setViewMode] = useState("active"); 
+            const [viewMode, setViewMode] = useState("active"); // active, future, history
             const [aiMessage, setAiMessage] = useState(null);
             const [selectedImg, setSelectedImg] = useState(null); 
             
@@ -145,11 +148,16 @@
                 });
             }, [user]);
 
-            const filteredTasks = useMemo(() => {
+            const todayStr = useMemo(() => {
                 const now = new Date();
-                const todayStr = now.toISOString().split('T')[0];
+                return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+            }, [tasks]);
+
+            // 過濾與計數邏輯
+            const filteredTasks = useMemo(() => {
                 if (viewMode === 'active') {
                     return tasks.filter(task => {
+                        if (task.date > todayStr) return false;
                         if (!task.completed) return true;
                         if (task.wasIncorrect && task.status === 'needsReview') {
                             const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : "";
@@ -157,7 +165,11 @@
                         }
                         return false;
                     }).sort((a, b) => new Date(a.date) - new Date(b.date));
+                } else if (viewMode === 'future') {
+                    // 未來計畫：日期在明天以後的所有任務 (不管是否完成，通常都是未完成)
+                    return tasks.filter(task => task.date > todayStr).sort((a, b) => new Date(a.date) - new Date(b.date));
                 } else {
+                    // 戰績榜：所有已完成的 (包含今日完成的複習題)
                     return tasks.filter(task => {
                         if (!task.completed) return false;
                         if (task.wasIncorrect && task.status === 'needsReview') {
@@ -167,12 +179,37 @@
                         return true;
                     }).sort((a, b) => (b.completedAt?.seconds || 0) - (a.completedAt?.seconds || 0));
                 }
-            }, [tasks, viewMode]);
+            }, [tasks, viewMode, todayStr]);
+
+            const counts = useMemo(() => {
+                const active = tasks.filter(task => {
+                    if (task.date > todayStr) return false;
+                    if (!task.completed) return true;
+                    if (task.wasIncorrect && task.status === 'needsReview') {
+                        const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : "";
+                        return solvedDate !== todayStr;
+                    }
+                    return false;
+                }).length;
+
+                const future = tasks.filter(task => task.date > todayStr).length;
+
+                const history = tasks.filter(task => {
+                    if (!task.completed) return false;
+                    if (task.wasIncorrect && task.status === 'needsReview') {
+                        const solvedDate = task.completedAt ? new Date(task.completedAt?.seconds * 1000).toISOString().split('T')[0] : "";
+                        return solvedDate === todayStr;
+                    }
+                    return true;
+                }).length;
+
+                return { active, future, history };
+            }, [tasks, todayStr]);
 
             const addTask = async (e) => {
                 e.preventDefault();
                 if (!newTask.trim() && previewList.length === 0) return;
-                setIsLoading(true);
+                setIsSubmitting(true);
                 try {
                     if (inputMode === 'photo') {
                         await Promise.all(previewList.map(item => 
@@ -191,7 +228,7 @@
                         });
                     }
                     setNewTask("");
-                } catch (e) { console.error(e); } finally { setIsLoading(false); }
+                } catch (e) { console.error(e); } finally { setIsSubmitting(false); }
             };
 
             const submitAnswer = async (task, inputAnswer) => {
@@ -205,7 +242,7 @@
                             completed: true, status: task.wasIncorrect ? 'needsReview' : 'archived', completedAt: serverTimestamp() 
                         });
                         setAiMessage(null);
-                    }, 1500); // 縮短為 1.5 秒
+                    }, 1500); 
                 } else {
                     setAiMessage({ text: "此步不通，請再三思索！", status: 'wrong' });
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { 
@@ -223,7 +260,7 @@
                         completed: true, status: 'archived', completedAt: serverTimestamp() 
                     });
                     setAiMessage(null);
-                }, 1500); // 縮短為 1.5 秒
+                }, 1500);
             };
 
             const compressImage = (file) => {
@@ -259,7 +296,7 @@
                             <div className={`glass-card celebrate-pop p-10 rounded-3xl shadow-2xl max-w-sm text-center border-t-8 ${aiMessage.status === 'correct' ? 'border-green-500' : 'border-red-500'} scale-110`}>
                                 <Icon name={aiMessage.status === 'correct' ? "award" : "help-circle"} size={80} className={aiMessage.status === 'correct' ? 'text-amber-500 mx-auto mb-6' : 'text-red-500 mx-auto mb-6'} />
                                 <h3 className="text-3xl font-black mb-3 text-stone-800 tracking-tight">{aiMessage.status === 'correct' ? "中盤獲勝！" : "尚未突圍"}</h3>
-                                <p className="text-xl text-stone-600 font-bold italic leading-relaxed px-2">{aiMessage.text}</p>
+                                <p className="text-xl text-stone-600 font-bold italic px-2 leading-relaxed">{aiMessage.text}</p>
                             </div>
                         </div>
                     )}
@@ -271,8 +308,8 @@
                                 <h3 className="text-xl font-black mb-4 text-stone-800">輸入刪除密碼</h3>
                                 <input type="password" value={deletePwd} onChange={(e) => setDeletePwd(e.target.value)} className={`w-full p-3 rounded-xl border-2 mb-4 text-center font-black tracking-widest outline-none ${pwdError ? 'border-red-500 bg-red-50' : 'border-stone-200 focus:border-stone-800'}`} placeholder="••••••" onKeyDown={(e) => e.key === 'Enter' && (deletePwd === "670512" ? (deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget)), setDeleteTarget(null), setDeletePwd(""), setPwdError(false)) : setPwdError(true))} />
                                 <div className="flex gap-2">
-                                    <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-stone-100 text-stone-500 rounded-xl font-bold">取消</button>
-                                    <button onClick={() => deletePwd === "670512" ? (deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget)), setDeleteTarget(null), setDeletePwd(""), setPwdError(false)) : setPwdError(true)} className="flex-1 py-3 bg-stone-900 text-white rounded-xl font-bold">確認</button>
+                                    <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-stone-100 text-stone-500 rounded-xl font-bold hover:bg-stone-200">取消</button>
+                                    <button onClick={() => deletePwd === "670512" ? (deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget)), setDeleteTarget(null), setDeletePwd(""), setPwdError(false)) : setPwdError(true)} className="flex-1 py-3 bg-stone-900 text-white rounded-xl font-bold hover:bg-black">確認</button>
                                 </div>
                             </div>
                         </div>
@@ -280,21 +317,20 @@
 
                     {selectedImg && (
                         <div className="fixed inset-0 z-[1100] bg-black/95 flex items-center justify-center p-4 cursor-pointer" onClick={() => setSelectedImg(null)}>
-                            <img src={selectedImg} className="max-w-full max-h-full rounded-xl animate-in zoom-in-95 shadow-2xl" />
+                            <img src={selectedImg} className="max-w-full max-h-full rounded-xl animate-in zoom-in-95 shadow-2xl border-4 border-white/20" />
                         </div>
                     )}
 
-                    {/* Header */}
                     <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
                         <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200">
-                            VER 9.7
+                            VER 10.1
                         </div>
                         <div className="max-w-4xl mx-auto">
                             <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg ring-4 ring-amber-500/20">
                                 <Icon name="flame" size={24} />
                                 <span>SAI ‧ 應試覺醒</span>
                             </div>
-                            <h1 className="text-2xl md:text-3xl font-black mb-4 tracking-tight opacity-95">稟軒，引導勝利的神之一手！</h1>
+                            <h1 className="text-2xl md:text-3xl font-black mb-4 tracking-tight opacity-95 text-white/90">稟軒，引導勝利的神之一手！</h1>
                             <div className="grid grid-cols-4 gap-2 md:gap-4 max-w-sm mx-auto">
                                 <TimeUnit label="天" value={timeLeft.d} />
                                 <TimeUnit label="時" value={timeLeft.h} />
@@ -310,7 +346,7 @@
                             <div className="lg:col-span-4">
                                 <div className="glass-card p-6 rounded-3xl border-2 border-stone-800 shadow-2xl sticky top-4">
                                     <h2 className="font-black text-xl mb-4 flex items-center gap-2 text-stone-800">
-                                        <div className="w-5 h-5 rounded-full bg-black"></div> 佈局策略 (媽媽)
+                                        <div className="w-5 h-5 rounded-full bg-black shadow-inner"></div> 佈局策略 (媽媽)
                                     </h2>
                                     <div className="flex bg-stone-100 rounded-2xl p-1 mb-6">
                                         <button onClick={() => setInputMode("text")} className={`flex-1 py-3 text-sm font-black rounded-xl transition-all ${inputMode === "text" ? 'bg-white text-indigo-700 shadow-md' : 'text-stone-400'}`}>文字任務</button>
@@ -318,38 +354,39 @@
                                     </div>
                                     <form onSubmit={addTask} className="space-y-4">
                                         <div className="grid grid-cols-2 gap-3">
-                                            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm text-black" />
-                                            <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-black text-sm outline-none text-black">
+                                            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm text-black outline-none focus:border-indigo-500" />
+                                            <select value={newCategory} onChange={e => setNewCategory(e.target.value)} className="p-3 rounded-xl border-2 border-stone-200 bg-white font-black text-sm outline-none text-black focus:border-indigo-500">
                                                 {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
                                             </select>
                                         </div>
                                         {inputMode === 'photo' ? (
                                             <div className="space-y-4">
-                                                <div onClick={() => fileInputRef.current.click()} className="p-6 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center cursor-pointer hover:bg-white bg-indigo-100/30">
+                                                <div onClick={() => !isSubmitting && fileInputRef.current.click()} className="p-6 border-2 border-dashed border-indigo-300 rounded-xl flex flex-col items-center cursor-pointer hover:bg-white bg-indigo-100/30 transition-all">
                                                     <Icon name="image-plus" size={32} className="text-indigo-400 mb-1" />
                                                     <span className="text-[10px] font-black uppercase text-indigo-500 tracking-widest">選取多個題目</span>
                                                     <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={async (e) => {
                                                         const files = Array.from(e.target.files);
                                                         const newPreviews = await Promise.all(files.map(async (f) => ({ id: Math.random().toString(36).substr(2, 9), dataUrl: await compressImage(f), qType: 'choice', answer: 'A' })));
                                                         setPreviewList(prev => [...prev, ...newPreviews]);
+                                                        e.target.value = ""; 
                                                     }} className="hidden" />
                                                 </div>
                                                 <div className="space-y-3 max-h-80 overflow-y-auto pr-2 custom-scroll">
                                                     {previewList.map(item => (
                                                         <div key={item.id} className="p-3 bg-white/50 rounded-2xl border-2 border-stone-200 relative">
-                                                            <button type="button" onClick={() => setPreviewList(prev => prev.filter(i => i.id !== item.id))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"><Icon name="x" size={14} /></button>
+                                                            <button type="button" onClick={() => setPreviewList(prev => prev.filter(i => i.id !== item.id))} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-lg z-20 hover:scale-110 active:scale-95 transition-all"><Icon name="x" size={14} /></button>
                                                             <div className="flex gap-3">
-                                                                <img src={item.dataUrl} className="w-16 h-16 object-cover rounded-lg border cursor-zoom-in" onClick={() => setSelectedImg(item.dataUrl)} />
+                                                                <img src={item.dataUrl} className="w-16 h-16 object-cover rounded-lg border cursor-zoom-in shadow-sm hover:brightness-90 transition-all" onClick={() => setSelectedImg(item.dataUrl)} />
                                                                 <div className="flex-1 space-y-2">
                                                                     <div className="flex gap-1">
-                                                                        {['choice', 'open'].map(t => <button key={t} type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: t} : i))} className={`flex-1 py-1 text-[9px] font-black rounded border ${item.qType === t ? 'bg-indigo-600 text-white' : 'bg-white text-stone-400'}`}>{t === 'choice' ? '選擇' : '填空'}</button>)}
+                                                                        {['choice', 'open'].map(t => <button key={t} type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, qType: t} : i))} className={`flex-1 py-1 text-[9px] font-black rounded border transition-colors ${item.qType === t ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-stone-400 border-stone-100'}`}>{t === 'choice' ? '選擇' : '填空'}</button>)}
                                                                     </div>
                                                                     {item.qType === 'choice' ? (
                                                                         <div className="flex justify-between">
-                                                                            {["A", "B", "C", "D"].map(c => <button key={c} type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: c} : i))} className={`w-6 h-6 rounded-full text-[9px] font-black border ${item.answer === c ? 'bg-black text-white' : 'bg-white'}`}>{c}</button>)}
+                                                                            {["A", "B", "C", "D"].map(c => <button key={c} type="button" onClick={() => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: c} : i))} className={`w-6 h-6 rounded-full text-[9px] font-black border transition-all ${item.answer === c ? 'bg-black text-white border-black shadow-md' : 'bg-white text-stone-300 border-stone-100 hover:border-stone-400'}`}>{c}</button>)}
                                                                         </div>
                                                                     ) : (
-                                                                        <input type="text" value={item.answer} onChange={e => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: e.target.value} : i))} className="w-full p-1 border rounded text-[9px] font-bold text-black" />
+                                                                        <input type="text" value={item.answer} onChange={e => setPreviewList(prev => prev.map(i => i.id === item.id ? {...i, answer: e.target.value} : i))} className="w-full p-1 border border-stone-200 rounded text-[9px] font-bold text-black focus:border-indigo-500 bg-white outline-none" placeholder="正確答案" />
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -358,10 +395,18 @@
                                                 </div>
                                             </div>
                                         ) : (
-                                            <textarea placeholder="例如：讀完國文第一冊、完成數學模擬卷..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="4" className="w-full p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm outline-none text-black" />
+                                            <textarea placeholder="例如：讀完國文第一冊、完成數學模擬卷..." value={newTask} onChange={e => setNewTask(e.target.value)} rows="4" className="w-full p-3 rounded-xl border-2 border-stone-200 bg-white font-bold text-sm outline-none text-black focus:border-indigo-500 shadow-inner" />
                                         )}
-                                        <button type="submit" disabled={isLoading} className="w-full bg-stone-900 text-white py-4 rounded-2xl font-black text-lg shadow-xl hover:bg-black active:scale-95 transition-all">
-                                            {isLoading ? "發布中..." : "確認佈局落子"}
+                                        <button 
+                                            type="submit" 
+                                            disabled={isSubmitting || (inputMode === 'photo' ? previewList.length === 0 : !newTask.trim())} 
+                                            className={`w-full py-4 rounded-2xl font-black text-lg shadow-xl transition-all flex items-center justify-center gap-3 ${isSubmitting ? 'bg-stone-400 cursor-not-allowed' : 'bg-stone-900 text-white hover:bg-black active:scale-95'}`}
+                                        >
+                                            {isSubmitting ? (
+                                                <><Icon name="loader-2" size={24} className="btn-spinner" />正在佈置...</>
+                                            ) : (
+                                                "確認佈局落子"
+                                            )}
                                         </button>
                                     </form>
                                 </div>
@@ -369,17 +414,26 @@
 
                             {/* Task Area */}
                             <div className="lg:col-span-8">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                                <div className="flex flex-col xl:flex-row xl:items-center justify-between mb-6 gap-4">
                                     <h2 className="font-black text-xl flex items-center gap-2 text-stone-800">
-                                        <div className="w-5 h-5 rounded-full bg-white border-2 border-stone-800 shadow-md"></div> 實戰對局
+                                        <div className="w-5 h-5 rounded-full bg-white border-2 border-stone-800 shadow-md"></div> 實戰對局區域
                                     </h2>
-                                    <div className="flex bg-stone-200/50 p-1 rounded-2xl border border-stone-200">
-                                        <button onClick={() => setViewMode('active')} className={`px-6 py-2 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${viewMode === 'active' ? 'bg-stone-900 text-white shadow-lg' : 'text-stone-500'}`}><Icon name="swords" size={16} /> 待挑戰</button>
-                                        <button onClick={() => setViewMode('history')} className={`px-6 py-2 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${viewMode === 'history' ? 'bg-amber-500 text-white shadow-lg' : 'text-stone-500'}`}><Icon name="history" size={16} /> 戰績榜</button>
+                                    
+                                    {/* 三分頁切換系統 */}
+                                    <div className="flex bg-stone-200/60 p-1 rounded-2xl border border-stone-200 shadow-inner scale-90 sm:scale-100 origin-left">
+                                        <button onClick={() => setViewMode('active')} className={`px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center gap-2 ${viewMode === 'active' ? 'bg-stone-900 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}>
+                                            <Icon name="swords" size={14} /> 待挑戰 ({counts.active})
+                                        </button>
+                                        <button onClick={() => setViewMode('future')} className={`px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center gap-2 ${viewMode === 'future' ? 'bg-indigo-700 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}>
+                                            <Icon name="calendar" size={14} /> 預讀計畫 ({counts.future})
+                                        </button>
+                                        <button onClick={() => setViewMode('history')} className={`px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center gap-2 ${viewMode === 'history' ? 'bg-amber-600 text-white shadow-lg' : 'text-stone-500 hover:text-stone-700'}`}>
+                                            <Icon name="award" size={14} /> 戰績榜 ({counts.history})
+                                        </button>
                                     </div>
                                 </div>
                                 
-                                <div className="grid md:grid-cols-2 gap-6">
+                                <div className="grid md:grid-cols-2 gap-6 min-h-[300px]">
                                     {filteredTasks.map(task => (
                                         <TaskCard 
                                             key={task.id} 
@@ -392,16 +446,20 @@
                                             onUpdateNote={(note) => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { note })}
                                         />
                                     ))}
-                                    {filteredTasks.length === 0 && <div className="md:col-span-2 text-center py-24 border-4 border-dashed border-stone-300 rounded-3xl font-black text-stone-400 bg-white/50">棋盤無資料</div>}
+                                    {filteredTasks.length === 0 && (
+                                        <div className="md:col-span-2 text-center py-24 border-4 border-dashed border-stone-300 rounded-3xl font-black text-stone-400 bg-white/50 italic px-10">
+                                            {viewMode === 'active' ? "目前棋盤清空，今日目標達成！" : viewMode === 'future' ? "未來尚未規劃任務。媽媽可以在左側佈陣。" : "尚未有光榮戰績。"}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="mt-12 text-center bg-white/70 py-8 rounded-3xl border border-white shadow-xl">
                                     <div className="flex justify-center gap-8 mb-4">
-                                        <div className="w-10 h-10 rounded-full bg-stone-900 shadow-2xl transform hover:scale-110"></div>
-                                        <div className="w-10 h-10 rounded-full bg-white border-4 border-stone-100 shadow-xl transform hover:scale-110"></div>
-                                        <div className="w-10 h-10 rounded-full bg-stone-900 shadow-2xl transform hover:scale-110"></div>
+                                        <div className="w-10 h-10 rounded-full bg-stone-900 shadow-2xl transform hover:scale-110 transition-transform"></div>
+                                        <div className="w-10 h-10 rounded-full bg-white border-4 border-stone-100 shadow-xl transform hover:scale-110 transition-transform"></div>
+                                        <div className="w-10 h-10 rounded-full bg-stone-900 shadow-2xl transform hover:scale-110 transition-transform"></div>
                                     </div>
-                                    <p className="text-stone-800 font-black tracking-[0.3em] text-sm px-6">每一顆落下的棋子，都是通往成功的神之一手。稟軒加油！</p>
+                                    <p className="text-stone-800 font-black tracking-[0.3em] text-sm px-6 italic">每一顆落下的棋子，都是通往成功的神之一手。稟軒加油！</p>
                                 </div>
                             </div>
                         </div>
@@ -415,44 +473,59 @@
             const isReview = task.wasIncorrect && task.status === 'needsReview' && mode === 'active';
 
             return (
-                <div className={`flex flex-col rounded-3xl border-2 transition-all duration-300 glass-card shadow-lg group overflow-hidden border-stone-800 category-${task.category} ${isReview ? 'ring-4 ring-amber-400 animate-pulse' : ''} ${mode === 'history' ? 'opacity-80' : ''}`}>
+                <div className={`flex flex-col rounded-3xl border-2 transition-all duration-300 glass-card shadow-lg group overflow-hidden border-stone-800 category-${task.category} ${isReview ? 'ring-4 ring-amber-400 animate-pulse' : ''} ${mode === 'history' ? 'opacity-80 grayscale-[0.1]' : ''} ${mode === 'future' ? 'opacity-90 border-indigo-200 border-dashed bg-indigo-50/20' : ''}`}>
                     <div className="p-3 flex items-center justify-between border-b bg-stone-50/50">
                         <div className="flex items-center gap-2">
                             <span className={`px-3 py-1 rounded-full text-[10px] font-black tag-${task.category}`}>{task.category}</span>
-                            <span className="text-[10px] text-stone-500 font-black">{task.date}</span>
-                            {isReview && <span className="text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded-full font-black text-center animate-pulse">複習</span>}
+                            <span className={`text-[10px] font-black tracking-tighter uppercase ${mode === 'future' ? 'text-indigo-600' : 'text-stone-500'}`}>{task.date}</span>
+                            {isReview && <span className="text-[10px] bg-amber-500 text-white px-2 py-0.5 rounded-full font-black text-center animate-pulse shadow-sm">神之再臨</span>}
+                            {mode === 'history' && <span className="text-[10px] bg-green-600 text-white px-2 py-0.5 rounded-full font-black shadow-sm">已擊破</span>}
+                            {mode === 'future' && <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold border border-indigo-200">規劃中</span>}
                         </div>
-                        <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-stone-300 hover:text-red-500 transition-opacity p-1"><Icon name="trash-2" size={16} /></button>
+                        <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-stone-300 hover:text-red-500 transition-opacity p-1 hover:scale-110 active:scale-95"><Icon name="trash-2" size={16} /></button>
                     </div>
                     <div className="p-5 flex-1 flex flex-col">
                         <div className="flex-1">
                             <div className="flex items-start gap-4 mb-4">
                                 {task.type === 'text' && mode === 'active' && (
-                                    <button onClick={onTextDone} className="mt-1 text-stone-300 hover:text-green-500 transition-all hover:scale-110"><Icon name="circle" size={32} /></button>
+                                    <button onClick={onTextDone} className="mt-1 text-stone-300 hover:text-green-500 transition-all hover:scale-110 active:scale-90"><Icon name="circle" size={32} /></button>
                                 )}
-                                <p className={`text-lg font-black text-stone-900 leading-tight ${mode === 'history' ? 'line-through text-stone-400' : ''}`}>{task.content || '解出題目：'}</p>
+                                <p className={`text-lg font-black text-stone-900 leading-tight ${mode === 'history' ? 'line-through text-stone-400' : ''}`}>{task.content || '解出下列對局：'}</p>
                             </div>
                             {task.imageUrl && (
-                                <div className="mb-4 cursor-zoom-in relative group/img rounded-2xl overflow-hidden border border-stone-100" onClick={() => openImg(task.imageUrl)}>
-                                    <img src={task.imageUrl} className="w-full h-48 object-cover group-hover:brightness-90 transition-all" />
+                                <div className="mb-4 cursor-zoom-in relative group/img rounded-2xl overflow-hidden border-2 border-stone-100 shadow-sm" onClick={() => openImg(task.imageUrl)}>
+                                    <img src={task.imageUrl} className="w-full h-48 object-cover group-hover/img:brightness-90 transition-all" />
                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity bg-black/10"><Icon name="maximize" size={32} className="text-white drop-shadow-lg" /></div>
                                 </div>
                             )}
                         </div>
+                        
+                        {/* 僅「待挑戰」顯示作答區 */}
                         {task.type === 'photo' && mode === 'active' && (
-                            <div className="mt-auto pt-4 bg-stone-100/50 p-4 rounded-2xl border border-stone-200">
+                            <div className="mt-auto pt-4 bg-stone-100/50 p-4 rounded-2xl border border-stone-200 shadow-inner">
+                                <p className="text-[10px] font-black text-stone-400 mb-3 uppercase tracking-tighter">提交解答</p>
                                 {task.questionType === 'choice' ? (
                                     <div className="grid grid-cols-4 gap-2">
-                                        {["A", "B", "C", "D"].map(c => <button key={c} onClick={() => onSubmit(c)} className="aspect-square bg-white border-2 border-stone-300 rounded-xl font-black text-lg hover:bg-stone-900 hover:text-white transition-all active:scale-95">{c}</button>)}
+                                        {["A", "B", "C", "D"].map(c => <button key={c} onClick={() => onSubmit(c)} className="aspect-square bg-white border-2 border-stone-300 rounded-xl font-black text-lg hover:bg-stone-900 hover:text-white transition-all active:scale-90 shadow-sm">{c}</button>)}
                                     </div>
                                 ) : (
                                     <div className="flex gap-2">
-                                        <input type="text" value={myInput} onChange={e => setMyInput(e.target.value)} placeholder="答案..." className="flex-1 p-2 rounded-xl border-2 border-stone-200 text-sm outline-none bg-white text-black" onKeyDown={e => e.key === 'Enter' && onSubmit(myInput)} />
-                                        <button onClick={() => onSubmit(myInput)} className="bg-stone-800 text-white px-4 rounded-xl font-black text-xs active:scale-95">提交</button>
+                                        <input type="text" value={myInput} onChange={e => setMyInput(e.target.value)} placeholder="輸入..." className="flex-1 p-2 rounded-xl border-2 border-stone-200 font-bold text-sm outline-none bg-white text-black focus:border-stone-900 shadow-sm" onKeyDown={e => e.key === 'Enter' && onSubmit(myInput)} />
+                                        <button onClick={() => onSubmit(myInput)} className="bg-stone-800 text-white px-4 rounded-xl font-black text-xs active:scale-95 transition-all shadow-md">提交</button>
                                     </div>
                                 )}
                             </div>
                         )}
+                        
+                        {/* 「預讀計畫」僅預覽答案 (不顯示按鈕) */}
+                        {task.type === 'photo' && mode === 'future' && (
+                            <div className="mt-auto p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex items-center justify-between">
+                                <span className="text-xs font-black text-indigo-500 uppercase">預設答案：</span>
+                                <span className="text-xl font-black text-indigo-900 drop-shadow-sm">{task.correctAnswer}</span>
+                            </div>
+                        )}
+
+                        {/* 「戰績榜」顯示正確答案 */}
                         {task.type === 'photo' && mode === 'history' && (
                             <div className="mt-auto p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-center justify-between shadow-inner">
                                 <span className="text-xs font-black text-amber-700 uppercase tracking-tighter">擊破點：</span>
@@ -463,7 +536,7 @@
                     <div className="px-5 pb-5 mt-2">
                         <div className="flex items-center gap-3 border-t-2 border-stone-100 pt-3">
                             <Icon name="edit-3" size={14} className="text-stone-300" />
-                            <input type="text" placeholder="輸入備註..." defaultValue={task.note} onBlur={e => onUpdateNote(e.target.value)} className="w-full bg-transparent outline-none italic font-black text-sm text-stone-500 focus:text-amber-600 transition-colors" />
+                            <input type="text" placeholder="補充心得筆記..." defaultValue={task.note} onBlur={e => onUpdateNote(e.target.value)} className="w-full bg-transparent outline-none italic font-black text-sm text-stone-500 focus:text-amber-600 transition-colors" />
                         </div>
                     </div>
                 </div>
