@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V10.6</title>
+    <title>稟軒會考衝刺首頁 - SAI 應試覺醒 V10.7</title>
     <!-- Tailwind CSS -->
-    <script src="[https://cdn.tailwindcss.com](https://cdn.tailwindcss.com)"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & Babel -->
-    <script src="[https://unpkg.com/react@18/umd/react.production.min.js](https://unpkg.com/react@18/umd/react.production.min.js)"></script>
-    <script src="[https://unpkg.com/react-dom@18/umd/react-dom.production.min.js](https://unpkg.com/react-dom@18/umd/react-dom.production.min.js)"></script>
-    <script src="[https://unpkg.com/@babel/standalone/babel.min.js](https://unpkg.com/@babel/standalone/babel.min.js)"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Lucide Icons -->
-    <script src="[https://unpkg.com/lucide@latest](https://unpkg.com/lucide@latest)"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('[https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap](https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap)');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
         body { margin: 0; padding: 0; overflow-x: hidden; font-family: 'Noto Sans TC', sans-serif; background: #FDFBF7; scroll-behavior: smooth; }
         .vibrant-bg { background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%); position: relative; min-height: 100vh; }
         .go-board-overlay { position: fixed; inset: 0; background-image: linear-gradient(#8b4513 0.5px, transparent 0.5px), linear-gradient(90deg, #8b4513 0.5px, transparent 0.5px); background-size: 40px 40px; opacity: 0.1; pointer-events: none; z-index: 0; }
@@ -57,15 +57,15 @@
             measurementId: "G-TD30PX25GY"
         };
 
-        import { initializeApp } from "[https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js)";
-        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, serverTimestamp } from "[https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js)";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "[https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js](https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js)";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         const app = initializeApp(myFirebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
         const appId = "exam-8ae8d";
-        const apiKey = ""; // 執行環境動態提供
+        const apiKey = ""; // 由執行環境動態提供
 
         const SUBJECTS = ["國文", "英文", "數學", "自然", "社會", "其他"];
 
@@ -100,9 +100,7 @@
             const [aiMessage, setAiMessage] = useState(null);
             const [selectedImg, setSelectedImg] = useState(null); 
             
-            const [deleteTarget, setDeleteTarget] = useState(null);
-            const [deletePwd, setDeletePwd] = useState("");
-            const [pwdError, setPwdError] = useState(false);
+            const [deleteTarget, setDeleteTarget] = useState(null); // 目前欲刪除的題目 ID
 
             const [newTask, setNewTask] = useState("");
             const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
@@ -112,36 +110,20 @@
 
             const targetDate = useMemo(() => new Date('2026-05-16T00:00:00'), []);
 
-            // 具有指數退避重試機制的 AI 請求函數
             const callGeminiWithRetry = async (systemPrompt, userPrompt, schema = null, imageBase64 = null) => {
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-                
                 const parts = [{ text: userPrompt }];
                 if (imageBase64 && imageBase64.startsWith('data:image')) {
                     const mimeType = imageBase64.match(/data:(.*?);/)?.[1] || "image/jpeg";
                     const data = imageBase64.split(',')[1];
                     parts.push({ inlineData: { mimeType, data } });
                 }
-                
-                const payload = {
-                    contents: [{ role: "user", parts }],
-                    systemInstruction: { parts: [{ text: systemPrompt }] }
-                };
-
-                if (schema) {
-                    payload.generationConfig = { 
-                        responseMimeType: "application/json",
-                        responseSchema: schema
-                    };
-                }
+                const payload = { contents: [{ role: "user", parts }], systemInstruction: { parts: [{ text: systemPrompt }] } };
+                if (schema) { payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema }; }
 
                 for (let i = 0; i <= 5; i++) {
                     try {
-                        const response = await fetch(url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
+                        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                         const result = await response.json();
                         const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -158,62 +140,26 @@
             const generateAiEncouragement = async (subject, taskContent) => {
                 const sys = "你是一位熱血的圍棋導師佐為。稟軒剛完成複習。請生成一句不超過15字的熱血鼓勵語，肯定他的神之一手。";
                 const user = `科目：${subject}，任務：${taskContent || '日常複習'}。`;
-                try {
-                    return await callGeminiWithRetry(sys, user) || "做得好！精彩的落子！";
-                } catch (e) { return "神之一手！繼續保持這股氣勢！"; }
+                try { return await callGeminiWithRetry(sys, user) || "做得好！精彩的落子！"; } catch (e) { return "神之一手！繼續保持這股氣勢！"; }
             };
 
             const generateSimilarTask = async (task) => {
                 setGeneratingId(task.id);
                 try {
                     const sys = "你是一位專業國中會考名師。請基於原題目內容，生成一題「觀念相同但內容不同」的類似練習題。必須輸出純 JSON 格式。";
-                    const schema = {
-                        type: "OBJECT",
-                        properties: {
-                            content: { type: "STRING" },
-                            qType: { type: "STRING", enum: ["choice", "open"] },
-                            answer: { type: "STRING" }
-                        },
-                        required: ["content", "qType", "answer"]
-                    };
-                    
-                    const userP = `原題目科目：${task.category}。內容：${task.content}。正確答案：${task.correctAnswer || '無'}。如果是選擇題，請在 content 中包含 A, B, C, D 選項描述。`;
-                    
+                    const schema = { type: "OBJECT", properties: { content: { type: "STRING" }, qType: { type: "STRING", enum: ["choice", "open"] }, answer: { type: "STRING" } }, required: ["content", "qType", "answer"] };
+                    const userP = `原題目科目：${task.category}。內容描述：${task.content}。正確答案：${task.correctAnswer || '無'}。如果是選擇題，請在 content 中包含 A, B, C, D 選項描述。`;
                     const responseText = await callGeminiWithRetry(sys, userP, schema, task.imageUrl);
-                    
-                    // JSON 清理邏輯：過濾掉 Markdown 標籤
                     const cleanJson = responseText.replace(/```json|```/g, "").trim();
                     const data = JSON.parse(cleanJson);
-                    
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), {
-                        type: 'photo',
-                        questionType: data.qType,
-                        content: `【AI 類似挑戰】\n${data.content}`,
-                        date: new Date().toISOString().split('T')[0],
-                        category: task.category,
-                        imageUrl: null,
-                        correctAnswer: data.answer,
-                        note: `由戰績榜 #${task.globalIndex} 延伸生成`,
-                        completed: false,
-                        wasIncorrect: false,
-                        status: 'active',
-                        createdAt: serverTimestamp(),
-                        similarCount: 0
-                    });
-
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), {
-                        similarCount: (task.similarCount || 0) + 1
-                    });
-
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), { type: 'photo', questionType: data.qType, content: `【AI 類似挑戰】\n${data.content}`, date: new Date().toISOString().split('T')[0], category: task.category, imageUrl: null, correctAnswer: data.answer, note: `由戰績榜 #${task.globalIndex} 延伸生成`, completed: false, wasIncorrect: false, status: 'active', createdAt: serverTimestamp(), similarCount: 0 });
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', task.id), { similarCount: (task.similarCount || 0) + 1 });
                     setAiMessage({ text: "AI 類似題已成功落子，請前往「待挑戰」迎戰！", status: 'correct' });
                     setTimeout(() => setAiMessage(null), 2000);
                 } catch (e) {
-                    console.error("Similar Task Error:", e);
-                    setAiMessage({ text: "此局對弈稍遇阻礙（AI 生成失敗），請再點擊一次重試。", status: 'wrong' });
+                    setAiMessage({ text: "此步棋局複雜，AI 佈局失敗，請再試一次。", status: 'wrong' });
                     setTimeout(() => setAiMessage(null), 2500);
-                } finally {
-                    setGeneratingId(null);
-                }
+                } finally { setGeneratingId(null); }
             };
 
             useEffect(() => {
@@ -294,6 +240,17 @@
                 }
             };
 
+            const confirmDelete = async () => {
+                if (!deleteTarget) return;
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget));
+                } catch (e) {
+                    console.error("Delete Error:", e);
+                } finally {
+                    setDeleteTarget(null);
+                }
+            };
+
             const compressImage = (file) => {
                 return new Promise((resolve) => {
                     const reader = new FileReader();
@@ -332,15 +289,16 @@
                         </div>
                     )}
 
+                    {/* 簡化後的刪除確認視窗 (取消密碼) */}
                     {deleteTarget && (
                         <div className="fixed inset-0 z-[1050] flex items-center justify-center p-6 bg-stone-900/90 backdrop-blur-md">
-                            <div className="bg-white p-8 rounded-3xl shadow-2xl border-4 border-stone-800 w-full max-w-xs text-center">
-                                <Icon name="lock" size={40} className="mx-auto mb-4 text-stone-800" />
-                                <h3 className="text-xl font-black mb-4 text-stone-800 tracking-tight">輸入刪除密碼</h3>
-                                <input type="password" value={deletePwd} onChange={(e) => setDeletePwd(e.target.value)} className={`w-full p-3 rounded-xl border-2 mb-4 text-center font-black tracking-widest outline-none ${pwdError ? 'border-red-500 bg-red-50' : 'border-stone-200 focus:border-stone-800'}`} placeholder="••••••" />
-                                <div className="flex gap-2">
-                                    <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-stone-100 text-stone-500 rounded-xl font-bold hover:bg-stone-200">取消</button>
-                                    <button onClick={() => deletePwd === "670512" ? (deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', deleteTarget)), setDeleteTarget(null), setDeletePwd(""), setPwdError(false)) : setPwdError(true)} className="flex-1 py-3 bg-stone-900 text-white rounded-xl font-bold hover:bg-black">確認</button>
+                            <div className="bg-white p-8 rounded-3xl shadow-2xl border-4 border-stone-800 w-full max-w-xs text-center animate-in zoom-in-95">
+                                <Icon name="trash-2" size={40} className="mx-auto mb-4 text-red-600" />
+                                <h3 className="text-xl font-black mb-4 text-stone-800 tracking-tight">確定要移除此對局嗎？</h3>
+                                <p className="text-sm text-stone-500 mb-6">此操作無法撤回，請謹慎決定。</p>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 bg-stone-100 text-stone-600 rounded-xl font-bold hover:bg-stone-200 transition-colors">取消</button>
+                                    <button onClick={confirmDelete} className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg active:scale-95">確認刪除</button>
                                 </div>
                             </div>
                         </div>
@@ -354,7 +312,7 @@
 
                     <header className="bg-gradient-to-r from-indigo-950 via-stone-900 to-indigo-950 text-white py-6 px-6 text-center shadow-2xl relative z-10 border-b-4 border-amber-500">
                         <div className="absolute top-4 right-6 bg-white/10 px-3 py-1 rounded-full border border-white/20 text-[10px] font-black tracking-widest text-amber-200 uppercase">
-                            VER 10.6
+                            VER 10.7
                         </div>
                         <div className="max-w-4xl mx-auto">
                             <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-amber-500 text-black font-black text-[24px] mb-4 shadow-lg ring-4 ring-amber-500/20">
